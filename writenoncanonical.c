@@ -76,14 +76,46 @@ int main(int argc, char **argv)
 
   printf("New termios structure set\n");
 
-  
+
+  //FLAG FIELD;
+  char* flag = malloc(sizeof(char)*8);
+  flag = "01111110";
+
+  //A FIELD
+
+  char* sendingA = malloc(sizeof(char)*8); 
+  sendingA = "00000011";  //0x03 
+
+  char* receivingA = malloc(sizeof(char)*8); 
+  receivingA = "00000001"; //0x01
+
+
+  // CONTROL FIELD
+  char * controlC = malloc(sizeof(char)*8);
+  controlC = "00000011"; //0x03
+
+  char * controlC_2 = malloc(sizeof(char)*8);
+  controlC_2 = "00000111"; //0x07
+
+  //BCC FIELD
+
+  //XOR BETWEEN A AND C 
+  //BCC = a^c decimal converted to bits again 
+  char * BCC = malloc(sizeof(char)*8);
+  BCC = "00000000"; //in this case 0x03 ^ 0x03 = 0x00;
+
+
 
   //WRITE 
-  fgets(buf,255,stdin);
+  strcat(buf,flag);
+  strcat(buf,sendingA);
+  strcat(buf,controlC);
+  strcat(buf,BCC);
+  strcat(buf,flag);
   
-  buf[strlen(buf)-1] = '\0';
+  buf[strlen(buf)] = '\0';
   res = write(fd, buf, strlen(buf)+1);
-  printf("%d bytes written\n", res);
+  printf("writing buf (%s) with a total size of %d bytes\n",buf,res);
 
 
   //RECEIVE BACK
@@ -95,8 +127,8 @@ int main(int argc, char **argv)
       STOP = TRUE;
   }
   
-  printf("%s\n", buf);
-  printf("%d bytes read\n",res);
+  
+  printf("received back buf (%s) with a total size of %d bytes\n",buf,res);
 
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 

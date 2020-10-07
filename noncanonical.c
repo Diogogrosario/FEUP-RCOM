@@ -82,13 +82,11 @@ int main(int argc, char **argv)
       STOP = TRUE;
   }
   
-  printf("%s\n", buf);
-  printf("%d bytes read\n",res);
+  printf("received buf (%s) with a total size of %d bytes\n",buf,res);
   
   //WRITE BACK
   res = write(fd, buf, strlen(buf)+1);
-  printf("%s\n",buf);
-  printf("%d bytes written\n", res);
+  printf("answering buf (%s) with a total size of %d bytes\n",buf,res);
 
   /* 
     O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
