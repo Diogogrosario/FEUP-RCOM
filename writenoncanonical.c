@@ -6,6 +6,7 @@
 #include <termios.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -15,13 +16,26 @@
 #define FALSE 0
 #define TRUE 1
 
+
+int fd;
+char buf[255];
+int notAnswered = 1;
+void atende()                   // atende alarme
+{
+  if(notAnswered){
+	  write(fd, buf, strlen(buf)+1);
+    printf("resending writing buf (%s) with a total size of %d bytes\n",buf,strlen(buf)+1);
+    alarm(3);
+  }
+}
+
 volatile int STOP = FALSE;
 
 int main(int argc, char **argv)
 {
-  int fd, c, res;
+  int c, res;
   struct termios oldtio, newtio;
-  char buf[255];
+  
   int i, sum = 0, speed = 0;
 
   if ((argc < 2) ||
@@ -116,19 +130,22 @@ int main(int argc, char **argv)
   buf[strlen(buf)] = '\0';
   res = write(fd, buf, strlen(buf)+1);
   printf("writing buf (%s) with a total size of %d bytes\n",buf,res);
+  alarm(3); 
 
+  (void) signal(SIGALRM, atende);  // instala  rotina que atende interrupcao
 
+  char recvBuf[255];
   //RECEIVE BACK
   res = 0;
-  while (STOP == FALSE)
-  {                           /* loop for input */
-    res += read(fd, buf, 255); /* returns after 5 chars have been input */
-    if(buf[res-1] == '\0')
+  while (STOP == FALSE) /* loop for input */
+  {                                
+    res += read(fd, recvBuf, 255); /* returns after 5 chars have been input */
+    if(recvBuf[res-1] == '\0')
       STOP = TRUE;
   }
   
   
-  printf("received back buf (%s) with a total size of %d bytes\n",buf,res);
+  printf("received back buf (%s) with a total size of %d bytes\n",recvBuf,res);
 
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 

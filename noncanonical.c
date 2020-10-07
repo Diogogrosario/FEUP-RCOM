@@ -13,6 +13,7 @@
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
+#include <signal.h>
 
 volatile int STOP = FALSE;
 
@@ -75,11 +76,14 @@ int main(int argc, char **argv)
   printf("New termios structure set\n");
 
   //RECEIVE
+
   while (STOP == FALSE)
-  {                           /* loop for input */
+  {      
+          /* loop for input */
     res += read(fd, buf, 255); /* returns after 5 chars have been input */
     if(buf[res-1] == '\0')
-      STOP = TRUE;
+      printf("received buf (%s) with a total size of %d bytes\n",buf,res);
+      //STOP = TRUE;
   }
   
   printf("received buf (%s) with a total size of %d bytes\n",buf,res);
