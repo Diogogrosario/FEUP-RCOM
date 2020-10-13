@@ -8,18 +8,26 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <signal.h>
 
 #define BAUDRATE B38400
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
-#include <signal.h>
+
+#define FLAG 0x7E
+#define SENDER_A 0x03
+#define RECEIVER_A 0x01
+#define SET_C 0x03
+#define UA_C 0x07 
 
 volatile int STOP = FALSE;
 
+int res;
+
 int main(int argc, char **argv)
 {
-  int fd, c, res;
+  int fd, c;
   struct termios oldtio, newtio;
   char buf[255];
 
@@ -82,15 +90,29 @@ int main(int argc, char **argv)
           /* loop for input */
     res += read(fd, buf, 255); /* returns after 5 chars have been input */
     if(buf[res-1] == '\0')
-      printf("received buf (%s) with a total size of %d bytes\n",buf,res);
-      //STOP = TRUE;
-  }
-  
-  printf("received buf (%s) with a total size of %d bytes\n",buf,res);
-  
+    {
+      write(1,buf,res);
+      res=0;
+      STOP = TRUE;
+    }
+      // printf("received buf (%s) with a total size of %d bytes\n",buf,res);   
+  }  
+
   //WRITE BACK
-  res = write(fd, buf, strlen(buf)+1);
-  printf("answering buf (%s) with a total size of %d bytes\n",buf,res);
+  char sendBuf[255];
+  sendBuf[0] = FLAG;
+  sendBuf[1] = RECEIVER_A;
+  sendBuf[2] = UA_C;
+  sendBuf[3] = RECEIVER_A ^ UA_C;
+  sendBuf[4] = FLAG;
+  sendBuf[5] = '\0';
+
+  res = write(fd, sendBuf, 6);
+
+  printf("\nanswering writing buf ");
+  fflush(stdout);
+  write(1,sendBuf,6);
+  printf(" with a total size of %d bytes\n",res);
 
   /* 
     O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 

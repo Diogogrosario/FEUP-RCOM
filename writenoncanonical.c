@@ -16,15 +16,25 @@
 #define FALSE 0
 #define TRUE 1
 
+#define FLAG 0x7E
+#define SENDER_A 0x03
+#define RECEIVER_A 0x01
+#define SET_C 0x03
+#define UA_C 0x07 
 
 int fd;
 char buf[255];
 int notAnswered = 1;
+
 void atende()                   // atende alarme
 {
   if(notAnswered){
-	  write(fd, buf, strlen(buf)+1);
-    printf("resending writing buf (%s) with a total size of %d bytes\n",buf,strlen(buf)+1);
+    int res;
+	  res = write(fd, buf, 6);
+    printf("resending writing buf ");
+    fflush(stdout);
+    write(1,buf,6);
+    printf(" with a total size of %d bytes\n",res);
     alarm(3);
   }
 }
@@ -88,64 +98,43 @@ int main(int argc, char **argv)
     exit(-1);
   }
 
-  printf("New termios structure set\n");
-
-
-  //FLAG FIELD;
-  char* flag = malloc(sizeof(char)*8);
-  flag = "01111110";
-
-  //A FIELD
-
-  char* sendingA = malloc(sizeof(char)*8); 
-  sendingA = "00000011";  //0x03 
-
-  char* receivingA = malloc(sizeof(char)*8); 
-  receivingA = "00000001"; //0x01
-
-
-  // CONTROL FIELD
-  char * controlC = malloc(sizeof(char)*8);
-  controlC = "00000011"; //0x03
-
-  char * controlC_2 = malloc(sizeof(char)*8);
-  controlC_2 = "00000111"; //0x07
-
-  //BCC FIELD
-
-  //XOR BETWEEN A AND C 
-  //BCC = a^c decimal converted to bits again 
-  char * BCC = malloc(sizeof(char)*8);
-  BCC = "00000000"; //in this case 0x03 ^ 0x03 = 0x00;
-
-
-
   //WRITE 
-  strcat(buf,flag);
-  strcat(buf,sendingA);
-  strcat(buf,controlC);
-  strcat(buf,BCC);
-  strcat(buf,flag);
-  
-  buf[strlen(buf)] = '\0';
-  res = write(fd, buf, strlen(buf)+1);
-  printf("writing buf (%s) with a total size of %d bytes\n",buf,res);
-  alarm(3); 
+  buf[0] = FLAG;
+  buf[1] = SENDER_A;
+  buf[2] = SET_C;
+  buf[3] = SENDER_A ^ SET_C;
+  buf[4] = FLAG;
+
+  res = write(fd, buf, 6);
+
+  printf("sending writing buf ");
+  fflush(stdout);
+  write(1,buf,6);
+  printf(" with a total size of %d bytes\n",res);
 
   (void) signal(SIGALRM, atende);  // instala  rotina que atende interrupcao
+  
+  alarm(3); 
+
 
   char recvBuf[255];
   //RECEIVE BACK
-  res = 0;
   while (STOP == FALSE) /* loop for input */
-  {                                
+  {   
+    res=0;     
     res += read(fd, recvBuf, 255); /* returns after 5 chars have been input */
-    if(recvBuf[res-1] == '\0')
+    if(recvBuf[res-1] == '\0'){
+      alarm(0);
       STOP = TRUE;
+    }
+    
   }
   
-  
-  printf("received back buf (%s) with a total size of %d bytes\n",recvBuf,res);
+  printf("receiving buf ");
+  fflush(stdout);
+  write(1,recvBuf,6);
+  printf(" with a total size of %d bytes\n",res);
+
 
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
