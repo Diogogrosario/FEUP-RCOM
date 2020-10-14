@@ -10,12 +10,12 @@ COMMON_SRCS :=
 COMMON_SRC  := $(addprefix $(SRCDIR)/, $(COMMON_SRCS))
 COMMON_OBJ  := $(addprefix $(ODIR)/, $(COMMON_SRCS:%.c=%.o))
 
-WRITE_TARGET := writenoncanonical.o
+WRITE_TARGET := writenoncanonical
 WRITE_SRCS := writenoncanonical.c
 WRITE_SRC  := $(addprefix $(SRCDIR)/, $(WRITE_SRCS))
 WRITE_OBJ  := $(addprefix $(ODIR)/, $(WRITE_SRCS:%.c=%.o))
 
-READ_TARGET := noncanonical.o
+READ_TARGET := noncanonical
 READ_SRCS := noncanonical.c
 READ_SRC  := $(addprefix $(SRCDIR)/, $(READ_SRCS))
 READ_OBJ  := $(addprefix $(ODIR)/, $(READ_SRCS:%.c=%.o))

@@ -27,12 +27,15 @@
 #define C_RCV 3
 #define BCC_OK 4
 #define DONE 5
+#define INFO_C_0 0x00
+#define INFO_C_1 0x40
 
 int currentState = 0;
 int currentPos = 4;
 int fd;
 char buf[255];
 int notAnswered = 1;
+int Ns=0;
 
 int res;
 
@@ -50,6 +53,40 @@ int sendSET(){
   write(1, buf, currentPos+2);
   printf(" with a total size of %d bytes\n", res);
   return 0;
+}
+
+int sendInfo(char *info, int size)
+{
+  
+  currentPos = 4;
+  char sendMessage[255]="";
+  //WRITE
+  sendMessage[0] = FLAG;
+  sendMessage[1] = SENDER_A;
+  sendMessage[2] = INFO_C_1;
+  if(Ns==0)
+    sendMessage[2] = INFO_C_0;
+
+  sendMessage[3] = SENDER_A ^ sendMessage[2];
+  //INSERIR DADOS AQUI
+  //vou tentar escrever padoru
+  char bcc = '\0';
+  for(int i = 0 ; i<size;i++)
+  {
+    bcc = bcc^info[i];
+    
+    sendMessage[4+i] = info[i];
+    currentPos++;
+  }
+  sendMessage[currentPos] = bcc;
+  currentPos++;
+  sendMessage[currentPos] = FLAG;
+  currentPos++;
+
+  res = write(fd, sendMessage, currentPos+1);
+  write(1,sendMessage,res);
+  printf(" with a total size of %d bytes\n", res);
+  return 1;
 }
 
 int uaStateMachine(char *buf)
@@ -233,35 +270,11 @@ int main(int argc, char **argv)
   /* 
     Criação de dados.
   */
-  buf[0]='\0';
 
-  currentPos = 4;
-  //WRITE
-  buf[0] = FLAG;
-  buf[1] = SENDER_A;
-  buf[2] = SET_C; 
-  buf[3] = SENDER_A ^ SET_C;
-  //INSERIR DADOS AQUI
-  //vou tentar escrever padoru
-  buf[4] = 'P';
-  currentPos++;
-  buf[5] = 'a';
-  currentPos++;
-  buf[6] = 'd';
-  currentPos++;
-  buf[7] = 'o';
-  currentPos++;
-  buf[8] = 'r';
-  currentPos++;
-  buf[9] = 'u';
-  currentPos++;
-  buf[10] = 'P' ^ 'a' ^ 'd' ^ 'o' ^ 'r' ^ 'u';
-  currentPos++;
-  buf[currentPos] = FLAG;
-
-  res = write(fd, buf, currentPos+2);
-  write(1,buf,res+1);
-  printf(" with a total size of %d bytes\n", res);
+  char data[255];
+  strcpy(data,"Padoru");
+  sendInfo(data,strlen(data));
+  
 
   sleep(1);
   if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
