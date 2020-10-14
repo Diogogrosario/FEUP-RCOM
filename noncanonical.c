@@ -20,92 +20,117 @@
 #define RECEIVER_A 0x01
 #define SET_C 0x03
 #define UA_C 0x07
+#define START 0
+#define FLAG_RCV 1
+#define A_RCV 2
+#define C_RCV 3
+#define BCC_OK 4
+#define DONE 5
 
 volatile int STOP = FALSE;
 
 int currentState = 0;
 
 int res;
+int fd;
 
-int  setStateMachine(char *buf)
+int sendUA()
 {
-  
-    switch (currentState)
-    {
-    case 0:
-      if (buf[0] == FLAG)
-      {
-        currentState++;
-        return TRUE;
-      }
-      break;
-    case 1:
-      if (buf[0] == SENDER_A)
-      {
-        currentState++;
-        return TRUE;
-      }
-      else if(buf[0]==FLAG)
-        return TRUE;
-      else
-      {
-        currentState = 0;
-      }
-      break;
-    case 2:
-      if (buf[0] == SET_C)
-      {
-        currentState++;
-        return TRUE;
-      }
-      else if (buf[0] == FLAG)
-      {
-        currentState = 1;
-        return TRUE;
-      }
-      else
-      {
-        currentState = 0;
-      }
-      break;
-    case 3:
-      if (buf[0] == (SET_C ^ SENDER_A))
-      {
-        currentState++;
-        return TRUE;
-      }
-      else if (buf[0] == FLAG)
-      {
-        currentState = 1;
-        return TRUE;
-      }
-      else
-      {
-        currentState = 0;
-      }
-    case 4:
-      if (buf[0] == FLAG)
-      {
-        currentState++;
-        return TRUE;
-      }
-      else
-      {
-        currentState = 0;
-      }
-      break;
+  char sendBuf[255];
+  sendBuf[0] = FLAG;
+  sendBuf[1] = SENDER_A;
+  sendBuf[2] = UA_C;
+  sendBuf[3] = SENDER_A ^ UA_C;
+  sendBuf[4] = FLAG;
+  sendBuf[5] = '\0';
 
-    default:
-      break;
+  res = write(fd, sendBuf, 6);
+
+  printf("\nanswering with UA message ");
+  fflush(stdout);
+  write(1, sendBuf, 6);
+  printf(" with a total size of %d bytes\n", res);
+  return 0;
+}
+
+int setStateMachine(char *buf)
+{
+
+  switch (currentState)
+  {
+  case START:
+    if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
     }
+    break;
+  case FLAG_RCV:
+    if (buf[0] == SENDER_A)
+    {
+      currentState = A_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+      return TRUE;
+    else
+    {
+      currentState = START;
+    }
+    break;
+  case A_RCV:
+    if (buf[0] == SET_C)
+    {
+      currentState = C_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+    break;
+  case C_RCV:
+    if (buf[0] == (SET_C ^ SENDER_A))
+    {
+      currentState = BCC_OK;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+  case BCC_OK:
+    if (buf[0] == FLAG)
+    {
+      currentState = DONE;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+    break;
+
+  default:
+    break;
+  }
 
   return FALSE;
-
 }
 
 int main(int argc, char **argv)
 {
-  int fd, c;
+
   struct termios oldtio, newtio;
   char buf[255];
 
@@ -163,18 +188,21 @@ int main(int argc, char **argv)
 
   //RECEIVE
   char msg[255];
-
   while (STOP == FALSE)
   {
     /* loop for input */
-    res += read(fd, buf, 1); /* returns after 5 chars have been input */   
+    res += read(fd, buf, 1); /* returns after 5 chars have been input */
     if (setStateMachine(buf))
     {
-      strcat(msg,buf);
-      write(1, buf, 1);
+      strcat(msg, buf);
       res = 0;
-      if(currentState==5){
-        currentState=0;
+      if (currentState == DONE)
+      {
+        printf("received SET message ");
+        fflush(stdout);
+        write(1, msg, 6);
+        printf(" with a total size of %d bytes", 6);
+        currentState = START;
         STOP = TRUE;
       }
     }
@@ -182,23 +210,10 @@ int main(int argc, char **argv)
     {
       msg[0] = '\0';
     }
-    // printf("received buf (%s) with a total size of %d bytes\n",buf,res);
   }
+
   //WRITE BACK
-  char sendBuf[255];
-  sendBuf[0] = FLAG;
-  sendBuf[1] = SENDER_A;
-  sendBuf[2] = UA_C;
-  sendBuf[3] = SENDER_A ^ UA_C;
-  sendBuf[4] = FLAG;
-  sendBuf[5] = '\0';
-
-  res = write(fd, sendBuf, 6);
-
-  printf("\nanswering writing buf ");
-  fflush(stdout);
-  write(1, sendBuf, 6);
-  printf(" with a total size of %d bytes\n", res);
+  sendUA();
 
   /* 
     ler os dados
@@ -207,7 +222,7 @@ int main(int argc, char **argv)
   // while (STOP == FALSE)
   // {
   //   /* loop for input */
-  //   res += read(fd, buf, 1); /* returns after 5 chars have been input */   
+  //   res += read(fd, buf, 1); /* returns after 5 chars have been input */
   //   if (setStateMachine(buf))
   //   {
   //     strcat(msg,buf);
@@ -224,10 +239,11 @@ int main(int argc, char **argv)
   //   }
   //   // printf("received buf (%s) with a total size of %d bytes\n",buf,res);
   // }
-  buf[0] = '\0';
-  res = read(fd, buf, 255);
-  write(1,buf,res);
-  printf("res = %d\n",res);
+
+  char auxBuf[255];
+  res = read(fd, auxBuf, 255);
+  write(1, auxBuf, res);
+  printf("res = %d\n", res);
 
   sleep(1);
   tcsetattr(fd, TCSANOW, &oldtio);
