@@ -26,7 +26,10 @@
 #define C_RCV 3
 #define BCC_OK 4
 #define DONE 5
+<<<<<<< HEAD
 
+=======
+>>>>>>> 9f875bba0400b992c8f4b2d871545322c299281a
 
 volatile int STOP = FALSE;
 
@@ -46,6 +49,7 @@ int sendUA()
   sendBuf[5] = '\0';
 
   res = write(fd, sendBuf, 6);
+<<<<<<< HEAD
 
   printf("\nanswering with UA message ");
   fflush(stdout);
@@ -54,6 +58,16 @@ int sendUA()
   return 0;
 }
 
+=======
+
+  printf("\nanswering with UA message ");
+  fflush(stdout);
+  write(1, sendBuf, 6);
+  printf(" with a total size of %d bytes\n", res);
+  return 0;
+}
+
+>>>>>>> 9f875bba0400b992c8f4b2d871545322c299281a
 int setStateMachine(char *buf)
 {
 
@@ -205,6 +219,7 @@ int main(int argc, char **argv)
         printf(" with a total size of %d bytes", 6);
         currentState = START;
         STOP = TRUE;
+        read(fd,buf,1);
       }
     }
     else
