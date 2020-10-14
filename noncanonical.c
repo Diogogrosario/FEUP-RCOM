@@ -205,6 +205,7 @@ int main(int argc, char **argv)
         printf(" with a total size of %d bytes", 6);
         currentState = START;
         STOP = TRUE;
+        read(fd,buf,1);
       }
     }
     else
