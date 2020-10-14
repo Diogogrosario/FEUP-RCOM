@@ -27,7 +27,7 @@ int currentState = 0;
 
 int res;
 
-int  stateMachine(char *buf)
+int  setStateMachine(char *buf)
 {
   
     switch (currentState)
@@ -168,7 +168,7 @@ int main(int argc, char **argv)
   {
     /* loop for input */
     res += read(fd, buf, 1); /* returns after 5 chars have been input */   
-    if (stateMachine(buf))
+    if (setStateMachine(buf))
     {
       strcat(msg,buf);
       write(1, buf, 1);
@@ -201,8 +201,33 @@ int main(int argc, char **argv)
   printf(" with a total size of %d bytes\n", res);
 
   /* 
-    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
+    ler os dados
   */
+
+  // while (STOP == FALSE)
+  // {
+  //   /* loop for input */
+  //   res += read(fd, buf, 1); /* returns after 5 chars have been input */   
+  //   if (setStateMachine(buf))
+  //   {
+  //     strcat(msg,buf);
+  //     write(1, buf, 1);
+  //     res = 0;
+  //     if(currentState==5){
+  //       currentState=0;
+  //       STOP = TRUE;
+  //     }
+  //   }
+  //   else
+  //   {
+  //     msg[0] = '\0';
+  //   }
+  //   // printf("received buf (%s) with a total size of %d bytes\n",buf,res);
+  // }
+  buf[0] = '\0';
+  res = read(fd, buf, 255);
+  write(1,buf,res);
+  printf("res = %d\n",res);
 
   sleep(1);
   tcsetattr(fd, TCSANOW, &oldtio);

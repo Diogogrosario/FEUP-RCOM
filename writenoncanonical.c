@@ -105,7 +105,6 @@ int main(int argc, char **argv)
   buf[1] = SENDER_A;
   buf[2] = SET_C; 
   buf[3] = SENDER_A ^ SET_C;
-  //INSERIR DADOS AQUI
   buf[currentPos] = FLAG; 
 
   res = write(fd, buf, currentPos+2);
@@ -138,9 +137,35 @@ int main(int argc, char **argv)
   printf(" with a total size of %d bytes\n", res);
 
   /* 
-    O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
-    o indicado no gui�o 
+    Criação de dados.
   */
+  buf[0]='\0';
+
+  currentPos = 4;
+  //WRITE
+  buf[0] = FLAG;
+  buf[1] = SENDER_A;
+  buf[2] = SET_C; 
+  buf[3] = SENDER_A ^ SET_C;
+  //INSERIR DADOS AQUI
+  //vou tentar escrever padoru
+  buf[4] = 'P';
+  currentPos++;
+  buf[5] = 'a';
+  currentPos++;
+  buf[6] = 'd';
+  currentPos++;
+  buf[7] = 'o';
+  currentPos++;
+  buf[8] = 'r';
+  currentPos++;
+  buf[9] = 'u';
+  currentPos++;
+  buf[10] = 'P' ^ 'a' ^ 'd' ^ 'o' ^ 'r' ^ 'u';
+  currentPos++;
+  buf[currentPos] = FLAG;
+
+  res = write(fd, buf, currentPos+2);
 
   sleep(1);
   if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
