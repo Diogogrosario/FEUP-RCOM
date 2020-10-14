@@ -27,6 +27,7 @@
 #define BCC_OK 4
 #define DONE 5
 
+
 volatile int STOP = FALSE;
 
 int currentState = 0;

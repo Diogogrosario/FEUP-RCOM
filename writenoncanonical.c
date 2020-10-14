@@ -21,7 +21,14 @@
 #define RECEIVER_A 0x01
 #define SET_C 0x03
 #define UA_C 0x07
+#define START 0
+#define FLAG_RCV 1
+#define A_RCV 2
+#define C_RCV 3
+#define BCC_OK 4
+#define DONE 5
 
+int currentState = 0;
 int currentPos = 4;
 int fd;
 char buf[255];
@@ -43,6 +50,81 @@ int sendSET(){
   write(1, buf, currentPos+2);
   printf(" with a total size of %d bytes\n", res);
   return 0;
+}
+
+int uaStateMachine(char *buf)
+{
+
+  switch (currentState)
+  {
+  case START:
+    if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    break;
+  case FLAG_RCV:
+    if (buf[0] == SENDER_A)
+    {
+      currentState = A_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+      return TRUE;
+    else
+    {
+      currentState = START;
+    }
+    break;
+  case A_RCV:
+    if (buf[0] == UA_C)
+    {
+      currentState = C_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+    break;
+  case C_RCV:
+    if (buf[0] == (UA_C ^ SENDER_A))
+    {
+      currentState = BCC_OK;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+  case BCC_OK:
+    if (buf[0] == FLAG)
+    {
+      currentState = DONE;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  return FALSE;
 }
 
 void atende() // atende alarme
@@ -122,21 +204,31 @@ int main(int argc, char **argv)
 
   char recvBuf[255];
   //RECEIVE BACK
-  while (STOP == FALSE) /* loop for input */
+  char msg[255];
+  while (STOP == FALSE)
   {
-    res = 0;
-    res += read(fd, recvBuf, 255); /* returns after 5 chars have been input */
-    if (recvBuf[res - 1] == '\0')
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if (uaStateMachine(recvBuf))
     {
-      alarm(0);
-      STOP = TRUE;
+      strcat(msg, recvBuf);
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        printf("received UA message ");
+        fflush(stdout);
+        write(1, msg, 6);
+        printf(" with a total size of %d bytes\n", 6);
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
     }
   }
-
-  printf("received UA message ");
-  fflush(stdout);
-  write(1, recvBuf, 6);
-  printf(" with a total size of %d bytes\n", 6);
 
   /* 
     Criação de dados.
