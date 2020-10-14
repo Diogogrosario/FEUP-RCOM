@@ -27,16 +27,29 @@ int fd;
 char buf[255];
 int notAnswered = 1;
 
+int res;
+
+int sendSET(){
+  buf[0] = FLAG;
+  buf[1] = SENDER_A;
+  buf[2] = SET_C; 
+  buf[3] = SENDER_A ^ SET_C;
+  buf[currentPos] = FLAG; 
+
+  res = write(fd, buf, currentPos+2);
+
+  printf("sending SET message ");
+  fflush(stdout);
+  write(1, buf, currentPos+2);
+  printf(" with a total size of %d bytes\n", res);
+  return 0;
+}
+
 void atende() // atende alarme
 {
   if (notAnswered)
   {
-    int res;
-    res = write(fd, buf, currentPos+2);
-    printf("resending writing buf ");
-    fflush(stdout);
-    write(1, buf, currentPos);
-    printf(" with a total size of %d bytes\n", res);
+    sendSET();
     alarm(3);
   }
 }
@@ -45,7 +58,7 @@ volatile int STOP = FALSE;
 
 int main(int argc, char **argv)
 {
-  int c, res;
+  int c;
   struct termios oldtio, newtio;
 
   int i, sum = 0, speed = 0;
@@ -101,18 +114,7 @@ int main(int argc, char **argv)
   }
 
   //WRITE
-  buf[0] = FLAG;
-  buf[1] = SENDER_A;
-  buf[2] = SET_C; 
-  buf[3] = SENDER_A ^ SET_C;
-  buf[currentPos] = FLAG; 
-
-  res = write(fd, buf, currentPos+2);
-
-  printf("sending writing buf ");
-  fflush(stdout);
-  write(1, buf, currentPos+2);
-  printf(" with a total size of %d bytes\n", res);
+  sendSET();
 
   (void)signal(SIGALRM, atende); // instala  rotina que atende interrupcao
 
@@ -131,10 +133,10 @@ int main(int argc, char **argv)
     }
   }
 
-  printf("receiving buf ");
+  printf("received UA message ");
   fflush(stdout);
   write(1, recvBuf, 6);
-  printf(" with a total size of %d bytes\n", res);
+  printf(" with a total size of %d bytes\n", 6);
 
   /* 
     Criação de dados.
@@ -166,6 +168,8 @@ int main(int argc, char **argv)
   buf[currentPos] = FLAG;
 
   res = write(fd, buf, currentPos+2);
+  write(1,buf,res+1);
+  printf(" with a total size of %d bytes\n", res);
 
   sleep(1);
   if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
