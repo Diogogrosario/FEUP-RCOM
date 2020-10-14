@@ -23,97 +23,82 @@
 
 volatile int STOP = FALSE;
 
-int currentState = 0, readPos = 0;
+int currentState = 0;
 
 int res;
 
-int  stateMachine(char *buf, int res)
+int  stateMachine(char *buf)
 {
   
-  while (readPos < res)
-  {
     switch (currentState)
     {
     case 0:
-      if (buf[readPos] == FLAG)
+      if (buf[0] == FLAG)
       {
         currentState++;
-        readPos++; //wait a sesc
-      }
-      else
-      {
-        currentState = 0;
-        readPos++;
+        return TRUE;
       }
       break;
     case 1:
-      if (buf[readPos] == SENDER_A)
+      if (buf[0] == SENDER_A)
       {
         currentState++;
-        readPos++;
+        return TRUE;
       }
-      else if (buf[readPos] == FLAG)
-      {
-        readPos++;
-      }
+      else if(buf[0]==FLAG)
+        return TRUE;
       else
       {
         currentState = 0;
-        readPos++;
       }
       break;
     case 2:
-      if (buf[readPos] == SET_C)
+      if (buf[0] == SET_C)
       {
         currentState++;
-        readPos++;
+        return TRUE;
       }
-      else if (buf[readPos] == FLAG)
+      else if (buf[0] == FLAG)
       {
         currentState = 1;
-        readPos++;
-      }
-      else
-      {
-        currentState = 0;
-        readPos++;
-      }
-      break;
-    case 3:
-      if (buf[readPos] == (SET_C ^ SENDER_A))
-      {
-        currentState++;
-        readPos++;
-      }
-      else if (buf[readPos] == FLAG)
-      {
-        readPos++;
-      }
-      else
-      {
-        currentState = 0;
-        readPos++;
-      }
-    case 4:
-      if (buf[readPos] == FLAG)
-      {
-        currentState=0;
-        readPos=0;
         return TRUE;
       }
       else
       {
         currentState = 0;
-        readPos++;
+      }
+      break;
+    case 3:
+      if (buf[0] == (SET_C ^ SENDER_A))
+      {
+        currentState++;
+        return TRUE;
+      }
+      else if (buf[0] == FLAG)
+      {
+        currentState = 1;
+        return TRUE;
+      }
+      else
+      {
+        currentState = 0;
+      }
+    case 4:
+      if (buf[0] == FLAG)
+      {
+        currentState++;
+        return TRUE;
+      }
+      else
+      {
+        currentState = 0;
       }
       break;
 
     default:
       break;
     }
-  }
-  currentState=0;
-  readPos=0;
+
   return FALSE;
 
 }
@@ -177,30 +162,34 @@ int main(int argc, char **argv)
   printf("New termios structure set\n");
 
   //RECEIVE
+  char msg[255];
 
   while (STOP == FALSE)
   {
     /* loop for input */
-    res += read(fd, buf, 255); /* returns after 5 chars have been input */   
-    if (stateMachine(buf, res))
+    res += read(fd, buf, 1); /* returns after 5 chars have been input */   
+    if (stateMachine(buf))
     {
-      write(1, buf, res);
+      strcat(msg,buf);
+      write(1, buf, 1);
       res = 0;
-      STOP = TRUE;
+      if(currentState==5){
+        currentState=0;
+        STOP = TRUE;
+      }
     }
     else
     {
-      buf[0] = '\0';
+      msg[0] = '\0';
     }
     // printf("received buf (%s) with a total size of %d bytes\n",buf,res);
   }
-
   //WRITE BACK
   char sendBuf[255];
   sendBuf[0] = FLAG;
-  sendBuf[1] = RECEIVER_A;
+  sendBuf[1] = SENDER_A;
   sendBuf[2] = UA_C;
-  sendBuf[3] = RECEIVER_A ^ UA_C;
+  sendBuf[3] = SENDER_A ^ UA_C;
   sendBuf[4] = FLAG;
   sendBuf[5] = '\0';
 
