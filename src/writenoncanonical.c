@@ -29,6 +29,9 @@
 #define DONE 5
 #define INFO_C_0 0x00
 #define INFO_C_1 0x40
+#define ESCAPE 0x7D
+#define ESCAPEFLAG 0x5E
+#define ESCAPEESCAPE 0x5D
 
 int currentState = 0;
 int currentPos = 4;
@@ -55,6 +58,23 @@ int sendSET(){
   return 0;
 }
 
+int stuffChar(char info,char * buf){
+  if(info == FLAG){
+    buf[0] = ESCAPE;
+    buf[1] = ESCAPEFLAG; 
+    return TRUE;
+  }
+  else if(info == ESCAPE){
+    buf[0] = ESCAPE;
+    buf[1] = ESCAPEESCAPE;
+    return TRUE;
+  }
+  else{
+    buf[0] = info;
+    return FALSE;
+  }
+}
+
 int sendInfo(char *info, int size)
 {
   
@@ -68,22 +88,39 @@ int sendInfo(char *info, int size)
     sendMessage[2] = INFO_C_0;
 
   sendMessage[3] = SENDER_A ^ sendMessage[2];
-  //INSERIR DADOS AQUI
-  //vou tentar escrever padoru
+
   char bcc = '\0';
+  int offset = 0;
   for(int i = 0 ; i<size;i++)
   {
-    bcc = bcc^info[i];
     
-    sendMessage[4+i] = info[i];
+    bcc = bcc^info[i];
+    char stuffedBuf[2];
+    
+    if(stuffChar(info[i],stuffedBuf)){
+      sendMessage[4+i+offset] = stuffedBuf[0];
+      offset++;
+      sendMessage[4+i+offset] = stuffedBuf[1];
+    }
+    else
+      sendMessage[4+i+ offset] = stuffedBuf[0];
     currentPos++;
   }
-  sendMessage[currentPos] = bcc;
+  
+  
+  char stuffedBCC[2];
+  if(stuffChar(bcc,stuffedBCC)){
+     sendMessage[currentPos+offset] = stuffedBCC[0];
+     offset++;
+     sendMessage[currentPos+offset] = stuffedBCC[1];
+  }
+  else
+    sendMessage[currentPos+offset] = stuffedBCC[0];
   currentPos++;
-  sendMessage[currentPos] = FLAG;
+  sendMessage[currentPos+offset] = FLAG;
   currentPos++;
 
-  res = write(fd, sendMessage, currentPos+1);
+  res = write(fd, sendMessage, currentPos+offset+1);
   write(1,sendMessage,res);
   printf(" with a total size of %d bytes\n", res);
   return 1;
@@ -272,7 +309,7 @@ int main(int argc, char **argv)
   */
 
   char data[255];
-  strcpy(data,"Padoru");
+  strcpy(data,"PA}PA");
   sendInfo(data,strlen(data));
   
 

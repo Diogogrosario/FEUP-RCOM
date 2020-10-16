@@ -26,11 +26,18 @@
 #define C_RCV 3
 #define BCC_OK 4
 #define DONE 5
+#define INFO_C_0 0x00
+#define INFO_C_1 0x40
+#define ESCAPE 0x7D
+#define ESCAPEFLAG 0x5E
+#define ESCAPEESCAPE 0x5D
 
 volatile int STOP = FALSE;
 
 int currentState = 0;
+int Nr = 1;
 
+char msg[255];
 int res;
 int fd;
 
@@ -52,6 +59,152 @@ int sendUA()
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
+
+int verifyBCC(){
+  printf("\n\n\n");
+  printf(" message length: %ld\n",strlen(msg));
+  printf(" last char os msg : %c\n",msg[strlen(msg)-1]);
+
+  char bccControl = '\0';
+  for(int i = 0;i< strlen(msg)-1;i++){
+    printf(" calculting new bcc with : %c\n", msg[i]);
+    bccControl ^= msg[i];
+  }
+  if(msg[strlen(msg)-1] == bccControl){
+    printf("\nBCC OK accepting data");
+    return TRUE; 
+  }
+  printf("\n\n\n");
+  printf("Calculated BCC : %c",bccControl);
+  printf("\n\n\n");
+  return FALSE;
+}
+
+int infoStateMachine(char *buf)
+{
+
+  switch (currentState)
+  {
+  case START:
+    if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      strcat(msg,buf);
+      write(1,buf,1);
+      return TRUE;
+    }
+    break;
+  case FLAG_RCV:
+    if (buf[0] == SENDER_A)
+    {
+      currentState = A_RCV;
+      strcat(msg,buf);
+      write(1,buf,1);
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+      return TRUE;
+    else
+    {
+      currentState = START;
+    }
+    break;
+  case A_RCV:
+    if (Nr == 1 && buf[0] == INFO_C_0)
+    {
+      currentState = C_RCV;
+      strcat(msg,buf);
+      write(1,buf,1);
+      return TRUE;
+    }
+    else if (Nr == 0 && buf[0] == INFO_C_1)
+    {
+      currentState = C_RCV;
+      strcat(msg,buf);
+      write(1,buf,1);
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+    break;
+  case C_RCV:
+    if (Nr == 1 && buf[0] == (SET_C ^ INFO_C_0))
+    {
+      currentState = BCC_OK;
+      strcat(msg,buf);
+      write(1,buf,1);
+      return TRUE;
+    }
+    else if (Nr == 0 && buf[0] == (SET_C ^ INFO_C_1))
+    {
+      currentState = BCC_OK;
+      strcat(msg,buf);
+      write(1,buf,1);
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+  case BCC_OK: //receives info
+    if (buf[0] == FLAG)
+    {
+      verifyBCC();
+      strcat(msg,buf);
+      write(1,buf,1);
+      res = 0;
+      currentState = DONE;
+      return TRUE;
+    }
+    else if(buf[0] == ESCAPE)
+    {
+      res += read(fd, buf, 1);
+      if(buf[0] == ESCAPEFLAG){
+        strcat(msg,"~");
+        write(1,"~", 1);
+        res = 0;
+      }
+      else if(buf[0] == ESCAPEESCAPE){
+        strcat(msg, "}");
+        write(1, "}", 1);
+        res = 0;
+      }
+      else{
+        strcat(msg,"}");
+        write(1 ,"}", 1);
+        strcat(msg,buf);
+        write(1, buf, 1);
+        res = 0;
+      }
+      return TRUE;
+    }
+    else{
+      strcat(msg,buf);
+      write(1,buf,1);
+      res = 0;
+      return TRUE;
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  return FALSE;
+}
+
 
 int setStateMachine(char *buf)
 {
@@ -128,6 +281,7 @@ int setStateMachine(char *buf)
   return FALSE;
 }
 
+
 int main(int argc, char **argv)
 {
 
@@ -187,7 +341,6 @@ int main(int argc, char **argv)
   printf("New termios structure set\n");
 
   //RECEIVE
-  char msg[255];
   while (STOP == FALSE)
   {
     /* loop for input */
@@ -205,6 +358,7 @@ int main(int argc, char **argv)
         currentState = START;
         STOP = TRUE;
         read(fd,buf,1);
+        msg[0] = '\0';
       }
     }
     else
@@ -215,36 +369,27 @@ int main(int argc, char **argv)
 
   //WRITE BACK
   sendUA();
+  STOP = FALSE;
 
   /* 
     ler os dados
   */
-
-  // while (STOP == FALSE)
-  // {
-  //   /* loop for input */
-  //   res += read(fd, buf, 1); /* returns after 5 chars have been input */
-  //   if (setStateMachine(buf))
-  //   {
-  //     strcat(msg,buf);
-  //     write(1, buf, 1);
-  //     res = 0;
-  //     if(currentState==5){
-  //       currentState=0;
-  //       STOP = TRUE;
-  //     }
-  //   }
-  //   else
-  //   {
-  //     msg[0] = '\0';
-  //   }
-  //   // printf("received buf (%s) with a total size of %d bytes\n",buf,res);
-  // }
-
-  char auxBuf[255];
-  res = read(fd, auxBuf, 255);
-  write(1, auxBuf, res);
-  printf("res = %d\n", res);
+  while (STOP == FALSE)
+  {
+    /* loop for input */
+    res += read(fd, buf, 1); /* returns after 5 chars have been input */
+    if (infoStateMachine(buf))
+    {
+      if(currentState==DONE){
+        currentState=START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
 
   sleep(1);
   tcsetattr(fd, TCSANOW, &oldtio);
