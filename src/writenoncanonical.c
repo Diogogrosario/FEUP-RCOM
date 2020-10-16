@@ -77,7 +77,6 @@ int stuffChar(char info,char * buf){
 
 int sendInfo(char *info, int size)
 {
-  
   currentPos = 4;
   char sendMessage[255]="";
   //WRITE
@@ -310,6 +309,9 @@ int main(int argc, char **argv)
 
   char data[255];
   strcpy(data,"PA}PA");
+  sendInfo(data,strlen(data));
+  
+  strcpy(data,"padoru");
   sendInfo(data,strlen(data));
   
 

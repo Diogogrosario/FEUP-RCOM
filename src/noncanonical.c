@@ -40,6 +40,7 @@ int Nr = 1;
 char msg[255];
 int res;
 int fd;
+int currentIndex = 0;
 
 int sendUA()
 {
@@ -60,37 +61,42 @@ int sendUA()
   return 0;
 }
 
-int verifyBCC(){
-  printf("\n\n\n");
-  printf(" message length: %ld\n",strlen(msg));
-  printf(" last char os msg : %c\n",msg[strlen(msg)-1]);
+int verifyBCC()
+{
+  // printf("\n\n\n");
+  // printf(" message length: %ld\n", currentIndex);
+  // printf(" last char os msg : %c\n", msg[currentIndex - 1]);
 
   char bccControl = '\0';
-  for(int i = 0;i< strlen(msg)-1;i++){
-    printf(" calculting new bcc with : %c\n", msg[i]);
+  for (int i = 4; i < currentIndex - 1; i++)
+  {
+    // printf(" calculting new bcc with : %c\n", msg[i]);
     bccControl ^= msg[i];
   }
-  if(msg[strlen(msg)-1] == bccControl){
-    printf("\nBCC OK accepting data");
-    return TRUE; 
+  if (msg[currentIndex - 1] == bccControl)
+  {
+    printf("\nBCC OK accepting data\n");
+    return TRUE;
   }
-  printf("\n\n\n");
-  printf("Calculated BCC : %c",bccControl);
-  printf("\n\n\n");
+  // printf("\n\n\n");
+  // printf("Calculated BCC : %c", bccControl);
+  // printf("\n\n\n");
   return FALSE;
 }
 
 int infoStateMachine(char *buf)
 {
-
+  
   switch (currentState)
   {
   case START:
     if (buf[0] == FLAG)
     {
+      currentIndex = 0;
       currentState = FLAG_RCV;
-      strcat(msg,buf);
-      write(1,buf,1);
+      msg[currentIndex] = buf[0];
+      currentIndex++;
+      write(1, buf, 1);
       return TRUE;
     }
     break;
@@ -98,8 +104,9 @@ int infoStateMachine(char *buf)
     if (buf[0] == SENDER_A)
     {
       currentState = A_RCV;
-      strcat(msg,buf);
-      write(1,buf,1);
+      msg[currentIndex] = buf[0];
+      currentIndex++;
+      write(1, buf, 1);
       return TRUE;
     }
     else if (buf[0] == FLAG)
@@ -113,15 +120,17 @@ int infoStateMachine(char *buf)
     if (Nr == 1 && buf[0] == INFO_C_0)
     {
       currentState = C_RCV;
-      strcat(msg,buf);
-      write(1,buf,1);
+      msg[currentIndex] = buf[0];
+      currentIndex++;
+      write(1, buf, 1);
       return TRUE;
     }
     else if (Nr == 0 && buf[0] == INFO_C_1)
     {
       currentState = C_RCV;
-      strcat(msg,buf);
-      write(1,buf,1);
+      msg[currentIndex] = buf[0];
+      currentIndex++;
+      write(1, buf, 1);
       return TRUE;
     }
     else if (buf[0] == FLAG)
@@ -138,15 +147,17 @@ int infoStateMachine(char *buf)
     if (Nr == 1 && buf[0] == (SET_C ^ INFO_C_0))
     {
       currentState = BCC_OK;
-      strcat(msg,buf);
-      write(1,buf,1);
+      msg[currentIndex] = buf[0];
+      currentIndex++;
+      write(1, buf, 1);
       return TRUE;
     }
     else if (Nr == 0 && buf[0] == (SET_C ^ INFO_C_1))
     {
       currentState = BCC_OK;
-      strcat(msg,buf);
-      write(1,buf,1);
+      msg[currentIndex] = buf[0];
+      currentIndex++;
+      write(1, buf, 1);
       return TRUE;
     }
     else if (buf[0] == FLAG)
@@ -161,38 +172,48 @@ int infoStateMachine(char *buf)
   case BCC_OK: //receives info
     if (buf[0] == FLAG)
     {
+      write(1, buf, 1);
       verifyBCC();
-      strcat(msg,buf);
-      write(1,buf,1);
+      msg[currentIndex] = buf[0];
+      currentIndex++;
       res = 0;
       currentState = DONE;
       return TRUE;
     }
-    else if(buf[0] == ESCAPE)
+    else if (buf[0] == ESCAPE)
     {
       res += read(fd, buf, 1);
-      if(buf[0] == ESCAPEFLAG){
-        strcat(msg,"~");
-        write(1,"~", 1);
+      if (buf[0] == ESCAPEFLAG)
+      {
+        msg[currentIndex] = '~';
+        currentIndex++;
+        write(1, "~", 1);
         res = 0;
       }
-      else if(buf[0] == ESCAPEESCAPE){
-        strcat(msg, "}");
+      else if (buf[0] == ESCAPEESCAPE)
+      {
+        msg[currentIndex] = '}';
+        currentIndex++;
         write(1, "}", 1);
         res = 0;
       }
-      else{
-        strcat(msg,"}");
-        write(1 ,"}", 1);
-        strcat(msg,buf);
+      else
+      {
+        msg[currentIndex] = '}';
+        currentIndex++;
+        write(1, "}", 1);
+        msg[currentIndex] = buf[0];
+        currentIndex++;
         write(1, buf, 1);
         res = 0;
       }
       return TRUE;
     }
-    else{
-      strcat(msg,buf);
-      write(1,buf,1);
+    else
+    {
+      msg[currentIndex] = buf[0];
+      currentIndex++;
+      write(1, buf, 1);
       res = 0;
       return TRUE;
     }
@@ -204,7 +225,6 @@ int infoStateMachine(char *buf)
 
   return FALSE;
 }
-
 
 int setStateMachine(char *buf)
 {
@@ -281,7 +301,6 @@ int setStateMachine(char *buf)
   return FALSE;
 }
 
-
 int main(int argc, char **argv)
 {
 
@@ -357,7 +376,7 @@ int main(int argc, char **argv)
         printf(" with a total size of %d bytes", 6);
         currentState = START;
         STOP = TRUE;
-        read(fd,buf,1);
+        read(fd, buf, 1);
         msg[0] = '\0';
       }
     }
@@ -377,11 +396,14 @@ int main(int argc, char **argv)
   while (STOP == FALSE)
   {
     /* loop for input */
+    buf[0] = '\0';
     res += read(fd, buf, 1); /* returns after 5 chars have been input */
+
     if (infoStateMachine(buf))
     {
-      if(currentState==DONE){
-        currentState=START;
+      if (currentState == DONE)
+      {
+        currentState = START;
         STOP = TRUE;
       }
     }
