@@ -28,6 +28,11 @@
 #define DONE 5
 #define INFO_C_0 0x00
 #define INFO_C_1 0x40
+#define RR_C_0 0x05
+#define RR_C_1 0x85
+#define REJ_C_0 0x01
+#define REJ_C_1 0x81
+#define DISC_C 0x0B
 #define ESCAPE 0x7D
 #define ESCAPEFLAG 0x5E
 #define ESCAPEESCAPE 0x5D
@@ -55,6 +60,69 @@ int sendUA()
   res = write(fd, sendBuf, 6);
 
   printf("\nanswering with UA message ");
+  fflush(stdout);
+  write(1, sendBuf, 6);
+  printf(" with a total size of %d bytes\n", res);
+  return 0;
+}
+
+int sendRR()
+{
+  char sendBuf[255];
+  sendBuf[0] = FLAG;
+  sendBuf[1] = SENDER_A;
+  sendBuf[2] = RR_C_0;
+  if(Nr == 1){
+    sendBuf[2] = RR_C_1;
+  }
+  sendBuf[3] = SENDER_A ^ sendBuf[2];
+  sendBuf[4] = FLAG;
+  sendBuf[5] = '\0';
+
+  res = write(fd, sendBuf, 6);
+
+  printf("\nanswering with RR message ");
+  fflush(stdout);
+  write(1, sendBuf, 6);
+  printf(" with a total size of %d bytes\n", res);
+  return 0;
+}
+
+int sendDISC()
+{
+  char sendBuf[255];
+  sendBuf[0] = FLAG;
+  sendBuf[1] = SENDER_A;
+  sendBuf[2] = DISC_C;
+  sendBuf[3] = SENDER_A ^ DISC_C;
+  sendBuf[4] = FLAG;
+  sendBuf[5] = '\0';
+
+  res = write(fd, sendBuf, 6);
+
+  printf("\nanswering with DISC message ");
+  fflush(stdout);
+  write(1, sendBuf, 6);
+  printf(" with a total size of %d bytes\n", res);
+  return 0;
+}
+
+int sendREJ()
+{
+  char sendBuf[255];
+  sendBuf[0] = FLAG;
+  sendBuf[1] = SENDER_A;
+  sendBuf[2] = REJ_C_0;
+  if(Nr == 1){
+    sendBuf[2] = REJ_C_1;
+  }
+  sendBuf[3] = SENDER_A ^ sendBuf[2];
+  sendBuf[4] = FLAG;
+  sendBuf[5] = '\0';
+
+  res = write(fd, sendBuf, 6);
+
+  printf("\nanswering with REJ message ");
   fflush(stdout);
   write(1, sendBuf, 6);
   printf(" with a total size of %d bytes\n", res);

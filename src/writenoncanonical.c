@@ -29,6 +29,7 @@
 #define DONE 5
 #define INFO_C_0 0x00
 #define INFO_C_1 0x40
+#define DISC_C 0x0B
 #define ESCAPE 0x7D
 #define ESCAPEFLAG 0x5E
 #define ESCAPEESCAPE 0x5D
@@ -41,6 +42,26 @@ int notAnswered = 1;
 int Ns=0;
 
 int res;
+
+int sendUA()
+{
+  char sendBuf[255];
+  sendBuf[0] = FLAG;
+  sendBuf[1] = SENDER_A;
+  sendBuf[2] = UA_C;
+  sendBuf[3] = SENDER_A ^ UA_C;
+  sendBuf[4] = FLAG;
+  sendBuf[5] = '\0';
+
+  res = write(fd, sendBuf, 6);
+
+  printf("\nanswering with UA message ");
+  fflush(stdout);
+  write(1, sendBuf, 6);
+  printf(" with a total size of %d bytes\n", res);
+  return 0;
+}
+
 
 int sendSET(){
   buf[0] = FLAG;
@@ -73,6 +94,25 @@ int stuffChar(char info,char * buf){
     buf[0] = info;
     return FALSE;
   }
+}
+
+int sendDISC()
+{
+  char sendBuf[255];
+  sendBuf[0] = FLAG;
+  sendBuf[1] = SENDER_A;
+  sendBuf[2] = DISC_C;
+  sendBuf[3] = SENDER_A ^ DISC_C;
+  sendBuf[4] = FLAG;
+  sendBuf[5] = '\0';
+
+  res = write(fd, sendBuf, 6);
+
+  printf("\nanswering with DISC message ");
+  fflush(stdout);
+  write(1, sendBuf, 6);
+  printf(" with a total size of %d bytes\n", res);
+  return 0;
 }
 
 int sendInfo(char *info, int size)
