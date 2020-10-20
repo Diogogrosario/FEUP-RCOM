@@ -45,6 +45,7 @@ int notAnswered = 1;
 int Ns=0;
 unsigned char frame[255];
 int frameSize = 0;
+int currentIndex = -1;
 
 int res;
 
@@ -84,6 +85,11 @@ int stuffChar(char info,char * buf){
     buf[0] = info;
     return FALSE;
   }
+}
+
+void updateNs()
+{
+  Ns = (Ns+1)%2;
 }
 
 int sendInfo(char *info, int size)
@@ -138,18 +144,19 @@ int sendInfo(char *info, int size)
 
   write(1,sendMessage,res);
   printf(" with a total size of %d bytes\n", res);
+  alarm(3);
   return 1;
 }
 
 int uaStateMachine(unsigned char *buf)
 {
-
   switch (currentState)
   {
   case START:
     if (buf[0] == FLAG)
     {
       currentState = FLAG_RCV;
+      currentIndex++;
       return TRUE;
     }
     break;
@@ -157,54 +164,64 @@ int uaStateMachine(unsigned char *buf)
     if (buf[0] == SENDER_A)
     {
       currentState = A_RCV;
+      currentIndex++;
       return TRUE;
     }
     else if (buf[0] == FLAG)
       return TRUE;
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
     break;
   case A_RCV:
     if (buf[0] == UA_C)
     {
+      currentIndex++;
       currentState = C_RCV;
       return TRUE;
     }
     else if (buf[0] == FLAG)
     {
+      currentIndex = 0;
       currentState = FLAG_RCV;
       return TRUE;
     }
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
     break;
   case C_RCV:
     if (buf[0] == (UA_C ^ SENDER_A))
     {
+      currentIndex++;
       currentState = BCC_OK;
       return TRUE;
     }
     else if (buf[0] == FLAG)
     {
+      currentIndex = 0;
       currentState = FLAG_RCV;
       return TRUE;
     }
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
   case BCC_OK:
     if (buf[0] == FLAG)
     {
+      currentIndex++;
       currentState = DONE;
       return TRUE;
     }
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
     break;
@@ -212,7 +229,7 @@ int uaStateMachine(unsigned char *buf)
   default:
     break;
   }
-
+  currentIndex = -1;
   return FALSE;
 }
 
@@ -224,6 +241,7 @@ int rrStateMachine(unsigned char *buf)
   case START:
     if (buf[0] == FLAG)
     {
+      currentIndex++;
       currentState = FLAG_RCV;
       return TRUE;
     }
@@ -231,6 +249,7 @@ int rrStateMachine(unsigned char *buf)
   case FLAG_RCV:
     if (buf[0] == SENDER_A)
     {
+      currentIndex++;
       currentState = A_RCV;
       return TRUE;
     }
@@ -238,58 +257,69 @@ int rrStateMachine(unsigned char *buf)
       return TRUE;
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
     break;
   case A_RCV:
     if(Ns == 0 && buf[0] == RR_C_1)
     {
+      currentIndex++;
       currentState = C_RCV;
       return TRUE;
     }
     else if(Ns == 1 && buf[0] == RR_C_0)
     {
+      currentIndex++;
       currentState = C_RCV;
       return TRUE;
     }
     else if (buf[0] == FLAG)
     {
+      currentIndex = 0;
       currentState = FLAG_RCV;
       return TRUE;
     }
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
     break;
   case C_RCV:
     if (Ns == 0 && buf[0] == (RR_C_1 ^ SENDER_A))
     {
+      currentIndex++;
       currentState = BCC_OK;
       return TRUE;
     }
     else if (Ns == 1 && buf[0] == (RR_C_0 ^ SENDER_A))
     {
+      currentIndex++;
       currentState = BCC_OK;
       return TRUE;
     }
     else if (buf[0] == FLAG)
     {
+      currentIndex = 0;
       currentState = FLAG_RCV;
       return TRUE;
     }
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
   case BCC_OK:
     if (buf[0] == FLAG)
     {
+      currentIndex++;
       currentState = DONE;
       return TRUE;
     }
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
     break;
@@ -297,7 +327,7 @@ int rrStateMachine(unsigned char *buf)
   default:
     break;
   }
-
+  currentIndex = -1;
   return FALSE;
 }
 
@@ -394,7 +424,7 @@ int main(int argc, char **argv)
     res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
     if (uaStateMachine(recvBuf))
     {
-      strcat(msg, recvBuf);
+      msg[currentIndex] = recvBuf[0];
       res = 0;
       if (currentState == DONE)
       {
@@ -405,6 +435,7 @@ int main(int argc, char **argv)
         write(1, msg, 6);
         printf(" with a total size of %d bytes\n", 6);
         //read(fd,recvBuf,1);
+        currentIndex = -1;
         currentState = START;
         STOP = TRUE;
       }
@@ -435,7 +466,7 @@ int main(int argc, char **argv)
     res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
     if (rrStateMachine(recvBuf))
     {
-      strcat(msg, recvBuf);
+      msg[currentIndex] = recvBuf[0];
       res = 0;
       if (currentState == DONE)
       {
@@ -443,8 +474,48 @@ int main(int argc, char **argv)
         currentTry = 0;
         printf("received RR message ");
         fflush(stdout);
-        write(1, msg, 6);
-        printf(" with a total size of %d bytes\n", 6);
+        write(1, msg, currentIndex+1);
+        printf(" with a total size of %d bytes\n", currentIndex+1);
+        updateNs();
+        currentIndex = -1;
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
+
+  
+  strcpy(data,"Padoru");
+  sendInfo(data,strlen(data));
+
+
+  recvBuf[0] = '\0';
+  msg[0] = '\0';
+  res = 0;
+  STOP = FALSE;
+  while (STOP == FALSE)
+  {
+    //printf("stuck in read\n");
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if (rrStateMachine(recvBuf))
+    {
+      msg[currentIndex] = recvBuf[0];
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        currentTry = 0;
+        printf("received RR message ");
+        fflush(stdout);
+        write(1, msg, currentIndex+1);
+        printf(" with a total size of %d bytes\n", currentIndex+1);
+        updateNs();
+        currentIndex = -1;
         currentState = START;
         STOP = TRUE;
       }

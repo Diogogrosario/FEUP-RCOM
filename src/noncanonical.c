@@ -45,11 +45,16 @@ int Nr = 1;
 char msg[255];
 int res;
 int fd;
-int currentIndex = 0;
+int currentIndex = -1;
 unsigned char frame[255];
 int frameSize = 0;
 
-int sendSupervisionPacket(char addressField,char controlByte)
+void updateNr()
+{
+  Nr = (Nr+1)%2;
+}
+
+int sendSupervisionPacket(unsigned char addressField,unsigned char controlByte)
 {
   unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
@@ -57,9 +62,15 @@ int sendSupervisionPacket(char addressField,char controlByte)
   sendBuf[2] = controlByte;
   sendBuf[3] = addressField ^ controlByte;
   sendBuf[4] = FLAG;
+  // printf("Flag: %x          sendbuf[0]: %x\n",FLAG,sendBuf[0]);
+  // printf("addField: %x          sendbuf[1]: %x\n",addressField,sendBuf[1]);
+  // printf("control: %x          sendbuf[2]: %x\n",controlByte,sendBuf[2]);
+  // printf("BCC: %x          sendbuf[3]: %x\n",addressField ^ controlByte,sendBuf[3]);
+  // printf("Flag: %x          sendbuf[4]: %x\n",FLAG,sendBuf[4]);
 
+  frame[0] = '\0';
   res = write(fd, sendBuf, 5);
-  strcpy(frame,sendBuf);
+  memcpy(frame,sendBuf,5);
   frameSize=5;
 
   printf("\nsending packet: ");
@@ -68,85 +79,6 @@ int sendSupervisionPacket(char addressField,char controlByte)
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
-
-// int sendUA()
-// {
-//   unsigned char sendBuf[255];
-//   sendBuf[0] = FLAG;
-//   sendBuf[1] = SENDER_A;
-//   sendBuf[2] = UA_C;
-//   sendBuf[3] = SENDER_A ^ UA_C;
-//   sendBuf[4] = FLAG;
-
-//   res = write(fd, sendBuf, 5);
-
-//   printf("\nanswering with UA message ");
-//   fflush(stdout);
-//   write(1, sendBuf, 5);
-//   printf(" with a total size of %d bytes\n", res);
-//   return 0;
-// }
-
-// int sendRR()
-// {
-//   unsigned char sendBuf[255];
-//   sendBuf[0] = FLAG;
-//   sendBuf[1] = SENDER_A;
-//   if(Nr == 0)
-//     sendBuf[2] = RR_C_0;
-//   else if (Nr == 1)
-//     sendBuf[2] = RR_C_1;
-//   sendBuf[3] = SENDER_A ^ sendBuf[2];
-//   sendBuf[4] = FLAG;
-
-//   res = write(fd, sendBuf, 5);
-
-//   printf("\nanswering with RR message ");
-//   fflush(stdout);
-//   write(1, sendBuf, 6);
-//   printf(" with a total size of %d bytes\n", res);
-//   return 0;
-// }
-
-// int sendDISC()
-// {
-//   unsigned char sendBuf[255];
-//   sendBuf[0] = FLAG;
-//   sendBuf[1] = SENDER_A;
-//   sendBuf[2] = DISC_C;
-//   sendBuf[3] = SENDER_A ^ DISC_C;
-//   sendBuf[4] = FLAG;
-
-//   res = write(fd, sendBuf, 5);
-
-//   printf("\nanswering with DISC message ");
-//   fflush(stdout);
-//   write(1, sendBuf, 5);
-//   printf(" with a total size of %d bytes\n", res);
-//   return 0;
-// }
-
-// int sendREJ()
-// {
-//   unsigned char sendBuf[255];
-//   sendBuf[0] = FLAG;
-//   sendBuf[1] = SENDER_A;
-//   sendBuf[2] = REJ_C_0;
-//   if (Nr == 1)
-//   {
-//     sendBuf[2] = REJ_C_1;
-//   }
-//   sendBuf[3] = SENDER_A ^ sendBuf[2];
-//   sendBuf[4] = FLAG;
-
-//   res = write(fd, sendBuf, 5);
-
-//   printf("\nanswering with REJ message ");
-//   fflush(stdout);
-//   write(1, sendBuf, 5);
-//   printf(" with a total size of %d bytes\n", res);
-//   return 0;
-// }
 
 int verifyBCC()
 {
@@ -179,11 +111,10 @@ int infoStateMachine(char *buf)
   case START:
     if (buf[0] == FLAG)
     {
-      currentIndex = 0;
+      currentIndex = -1;
       currentState = FLAG_RCV;
       msg[currentIndex] = buf[0];
       currentIndex++;
-      write(1, buf, 1);
       return TRUE;
     }
     break;
@@ -193,7 +124,6 @@ int infoStateMachine(char *buf)
       currentState = A_RCV;
       msg[currentIndex] = buf[0];
       currentIndex++;
-      write(1, buf, 1);
       return TRUE;
     }
     else if (buf[0] == FLAG)
@@ -209,7 +139,6 @@ int infoStateMachine(char *buf)
       currentState = C_RCV;
       msg[currentIndex] = buf[0];
       currentIndex++;
-      write(1, buf, 1);
       return TRUE;
     }
     else if (Nr == 0 && buf[0] == INFO_C_1)
@@ -217,7 +146,6 @@ int infoStateMachine(char *buf)
       currentState = C_RCV;
       msg[currentIndex] = buf[0];
       currentIndex++;
-      write(1, buf, 1);
       return TRUE;
     }
     else if (buf[0] == FLAG)
@@ -236,7 +164,6 @@ int infoStateMachine(char *buf)
       currentState = BCC_OK;
       msg[currentIndex] = buf[0];
       currentIndex++;
-      write(1, buf, 1);
       return TRUE;
     }
     else if (Nr == 0 && buf[0] == (SET_C ^ INFO_C_1))
@@ -244,7 +171,6 @@ int infoStateMachine(char *buf)
       currentState = BCC_OK;
       msg[currentIndex] = buf[0];
       currentIndex++;
-      write(1, buf, 1);
       return TRUE;
     }
     else if (buf[0] == FLAG)
@@ -259,12 +185,12 @@ int infoStateMachine(char *buf)
   case BCC_OK: //receives info
     if (buf[0] == FLAG)
     {
-      write(1, buf, 1);
       verifyBCC();
       msg[currentIndex] = buf[0];
       currentIndex++;
       res = 0;
       currentState = DONE;
+      write(1,msg,currentIndex);
       return TRUE;
     }
     else if (buf[0] == ESCAPE)
@@ -274,24 +200,20 @@ int infoStateMachine(char *buf)
       {
         msg[currentIndex] = '~';
         currentIndex++;
-        write(1, "~", 1);
         res = 0;
       }
       else if (buf[0] == ESCAPEESCAPE)
       {
         msg[currentIndex] = '}';
         currentIndex++;
-        write(1, "}", 1);
         res = 0;
       }
       else
       {
         msg[currentIndex] = '}';
         currentIndex++;
-        write(1, "}", 1);
         msg[currentIndex] = buf[0];
         currentIndex++;
-        write(1, buf, 1);
         res = 0;
       }
       return TRUE;
@@ -300,7 +222,6 @@ int infoStateMachine(char *buf)
     {
       msg[currentIndex] = buf[0];
       currentIndex++;
-      write(1, buf, 1);
       res = 0;
       return TRUE;
     }
@@ -322,6 +243,7 @@ int setStateMachine(char *buf)
     if (buf[0] == FLAG)
     {
       currentState = FLAG_RCV;
+      currentIndex++;
       return TRUE;
     }
     break;
@@ -329,10 +251,13 @@ int setStateMachine(char *buf)
     if (buf[0] == SENDER_A)
     {
       currentState = A_RCV;
+      currentIndex++;
       return TRUE;
     }
-    else if (buf[0] == FLAG)
+    else if (buf[0] == FLAG){
+      currentIndex=1;
       return TRUE;
+    }
     else
     {
       currentState = START;
@@ -342,10 +267,12 @@ int setStateMachine(char *buf)
     if (buf[0] == SET_C)
     {
       currentState = C_RCV;
+      currentIndex++;
       return TRUE;
     }
     else if (buf[0] == FLAG)
     {
+      currentIndex=1;
       currentState = FLAG_RCV;
       return TRUE;
     }
@@ -357,11 +284,13 @@ int setStateMachine(char *buf)
   case C_RCV:
     if (buf[0] == (SET_C ^ SENDER_A))
     {
+      currentIndex++;
       currentState = BCC_OK;
       return TRUE;
     }
     else if (buf[0] == FLAG)
     {
+      currentIndex=1;
       currentState = FLAG_RCV;
       return TRUE;
     }
@@ -372,11 +301,13 @@ int setStateMachine(char *buf)
   case BCC_OK:
     if (buf[0] == FLAG)
     {
+      currentIndex++;
       currentState = DONE;
       return TRUE;
     }
     else
     {
+      currentIndex = -1;
       currentState = START;
     }
     break;
@@ -384,7 +315,7 @@ int setStateMachine(char *buf)
   default:
     break;
   }
-
+  currentIndex=0;
   return FALSE;
 }
 
@@ -453,17 +384,17 @@ int main(int argc, char **argv)
     res += read(fd, buf, 1); /* returns after 5 chars have been input */
     if (setStateMachine(buf))
     {
-      strcat(msg, buf);
+      msg[currentIndex] = buf[0];
       res = 0;
       if (currentState == DONE)
       {
         printf("received SET message ");
         fflush(stdout);
-        write(1, msg, 6);
-        printf(" with a total size of %d bytes", 6);
+        write(1, msg, currentIndex+1);
+        printf(" with a total size of %d bytes", currentIndex+1);
+        currentIndex = -1;
         currentState = START;
         STOP = TRUE;
-        read(fd, buf, 1);
         msg[0] = '\0';
       }
     }
@@ -492,6 +423,7 @@ int main(int argc, char **argv)
       {
         if (currentState == DONE)
         {
+          currentIndex = -1;
           if(Nr==0)
             sendSupervisionPacket(SENDER_A,RR_C_0);
           else if(Nr==1)
@@ -499,6 +431,7 @@ int main(int argc, char **argv)
 
           currentState = START;
           STOP = TRUE;
+          updateNr();
         }
       }
       else
