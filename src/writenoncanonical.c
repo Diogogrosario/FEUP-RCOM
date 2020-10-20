@@ -36,46 +36,35 @@
 #define RR_C_0 0x05
 #define RR_C_1 0x85
 
+int maxTries = 3, currentTry = 0;
 int currentState = 0;
 int currentPos = 4;
 int fd;
 unsigned char buf[255];
 int notAnswered = 1;
 int Ns=0;
+unsigned char frame[255];
+int frameSize = 0;
 
 int res;
 
-int sendUA()
+int sendSupervisionPacket(char addressField,char controlByte)
 {
   unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
-  sendBuf[1] = SENDER_A;
-  sendBuf[2] = UA_C;
-  sendBuf[3] = SENDER_A ^ UA_C;
+  sendBuf[1] = addressField;
+  sendBuf[2] = controlByte;
+  sendBuf[3] = addressField ^ controlByte;
   sendBuf[4] = FLAG;
 
   res = write(fd, sendBuf, 5);
+  frame[0]='\0';
+  memcpy(frame,sendBuf,5);
+  frameSize=5;
 
-  printf("\nanswering with UA message ");
+  printf("\nsending packet: ");
   fflush(stdout);
   write(1, sendBuf, 5);
-  printf(" with a total size of %d bytes\n", res);
-  return 0;
-}
-
-
-int sendSET(){
-  buf[0] = FLAG;
-  buf[1] = SENDER_A;
-  buf[2] = SET_C; 
-  buf[3] = SENDER_A ^ SET_C;
-  buf[currentPos] = FLAG; 
-
-  res = write(fd, buf, currentPos+2);
-
-  printf("sending SET message ");
-  fflush(stdout);
-  write(1, buf, currentPos+2);
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
@@ -95,24 +84,6 @@ int stuffChar(char info,char * buf){
     buf[0] = info;
     return FALSE;
   }
-}
-
-int sendDISC()
-{
-  unsigned char sendBuf[255];
-  sendBuf[0] = FLAG;
-  sendBuf[1] = SENDER_A;
-  sendBuf[2] = DISC_C;
-  sendBuf[3] = SENDER_A ^ DISC_C;
-  sendBuf[4] = FLAG;
-
-  res = write(fd, sendBuf, 5);
-
-  printf("\nanswering with DISC message ");
-  fflush(stdout);
-  write(1, sendBuf, 5);
-  printf(" with a total size of %d bytes\n", res);
-  return 0;
 }
 
 int sendInfo(char *info, int size)
@@ -160,6 +131,11 @@ int sendInfo(char *info, int size)
   currentPos++;
 
   res = write(fd, sendMessage, currentPos+offset+1);
+  frame[0]='\0';
+  memcpy(frame,sendMessage,currentPos+offset+1);
+  // frame = sendMessage;
+  frameSize=currentPos+offset+1;
+
   write(1,sendMessage,res);
   printf(" with a total size of %d bytes\n", res);
   return 1;
@@ -327,11 +303,20 @@ int rrStateMachine(unsigned char *buf)
 
 void atende() // atende alarme
 {
-  if (notAnswered)
+  if (notAnswered && currentTry < maxTries)
   {
-    sendSET();
+    write(fd,frame,frameSize);
+    printf("Resending : ");
+    fflush(stdout);
+    write(1,frame,frameSize+1);
+    printf("\n");
     alarm(3);
+    currentTry++;
   }
+  else if(currentTry>=maxTries){
+    alarm(0);
+    exit(-1); 
+  } 
 }
 
 volatile int STOP = FALSE;
@@ -394,7 +379,7 @@ int main(int argc, char **argv)
   }
 
   //WRITE
-  sendSET();
+  sendSupervisionPacket(SENDER_A, SET_C);
 
   (void)signal(SIGALRM, atende); // instala  rotina que atende interrupcao
 
@@ -414,6 +399,7 @@ int main(int argc, char **argv)
       if (currentState == DONE)
       {
         alarm(0);
+        currentTry = 0;
         printf("received UA message ");
         fflush(stdout);
         write(1, msg, 6);
@@ -454,38 +440,7 @@ int main(int argc, char **argv)
       if (currentState == DONE)
       {
         alarm(0);
-        printf("received RR message ");
-        fflush(stdout);
-        write(1, msg, 6);
-        printf(" with a total size of %d bytes\n", 6);
-        currentState = START;
-        STOP = TRUE;
-      }
-    }
-    else
-    {
-      msg[0] = '\0';
-    }
-  }
-  
-  strcpy(data,"padoru");
-  sendInfo(data,strlen(data));
-  
-  recvBuf[0] = '\0';
-  msg[0] = '\0';
-  res = 0;
-  STOP = FALSE;
-  while (STOP == FALSE)
-  {
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
-    if (rrStateMachine(recvBuf))
-    {
-      strcat(msg, recvBuf);
-      res = 0;
-      if (currentState == DONE)
-      {
-        alarm(0);
+        currentTry = 0;
         printf("received RR message ");
         fflush(stdout);
         write(1, msg, 6);

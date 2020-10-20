@@ -46,85 +46,107 @@ char msg[255];
 int res;
 int fd;
 int currentIndex = 0;
+unsigned char frame[255];
+int frameSize = 0;
 
-int sendUA()
+int sendSupervisionPacket(char addressField,char controlByte)
 {
   unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
-  sendBuf[1] = SENDER_A;
-  sendBuf[2] = UA_C;
-  sendBuf[3] = SENDER_A ^ UA_C;
+  sendBuf[1] = addressField;
+  sendBuf[2] = controlByte;
+  sendBuf[3] = addressField ^ controlByte;
   sendBuf[4] = FLAG;
 
   res = write(fd, sendBuf, 5);
+  strcpy(frame,sendBuf);
+  frameSize=5;
 
-  printf("\nanswering with UA message ");
+  printf("\nsending packet: ");
   fflush(stdout);
   write(1, sendBuf, 5);
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
 
-int sendRR()
-{
-  unsigned char sendBuf[255];
-  sendBuf[0] = FLAG;
-  sendBuf[1] = SENDER_A;
-  if(Nr == 0)
-    sendBuf[2] = RR_C_0;
-  else if (Nr == 1)
-    sendBuf[2] = RR_C_1;
-  sendBuf[3] = SENDER_A ^ sendBuf[2];
-  sendBuf[4] = FLAG;
+// int sendUA()
+// {
+//   unsigned char sendBuf[255];
+//   sendBuf[0] = FLAG;
+//   sendBuf[1] = SENDER_A;
+//   sendBuf[2] = UA_C;
+//   sendBuf[3] = SENDER_A ^ UA_C;
+//   sendBuf[4] = FLAG;
 
-  res = write(fd, sendBuf, 5);
+//   res = write(fd, sendBuf, 5);
 
-  printf("\nanswering with RR message ");
-  fflush(stdout);
-  write(1, sendBuf, 6);
-  printf(" with a total size of %d bytes\n", res);
-  return 0;
-}
+//   printf("\nanswering with UA message ");
+//   fflush(stdout);
+//   write(1, sendBuf, 5);
+//   printf(" with a total size of %d bytes\n", res);
+//   return 0;
+// }
 
-int sendDISC()
-{
-  unsigned char sendBuf[255];
-  sendBuf[0] = FLAG;
-  sendBuf[1] = SENDER_A;
-  sendBuf[2] = DISC_C;
-  sendBuf[3] = SENDER_A ^ DISC_C;
-  sendBuf[4] = FLAG;
+// int sendRR()
+// {
+//   unsigned char sendBuf[255];
+//   sendBuf[0] = FLAG;
+//   sendBuf[1] = SENDER_A;
+//   if(Nr == 0)
+//     sendBuf[2] = RR_C_0;
+//   else if (Nr == 1)
+//     sendBuf[2] = RR_C_1;
+//   sendBuf[3] = SENDER_A ^ sendBuf[2];
+//   sendBuf[4] = FLAG;
 
-  res = write(fd, sendBuf, 5);
+//   res = write(fd, sendBuf, 5);
 
-  printf("\nanswering with DISC message ");
-  fflush(stdout);
-  write(1, sendBuf, 5);
-  printf(" with a total size of %d bytes\n", res);
-  return 0;
-}
+//   printf("\nanswering with RR message ");
+//   fflush(stdout);
+//   write(1, sendBuf, 6);
+//   printf(" with a total size of %d bytes\n", res);
+//   return 0;
+// }
 
-int sendREJ()
-{
-  unsigned char sendBuf[255];
-  sendBuf[0] = FLAG;
-  sendBuf[1] = SENDER_A;
-  sendBuf[2] = REJ_C_0;
-  if (Nr == 1)
-  {
-    sendBuf[2] = REJ_C_1;
-  }
-  sendBuf[3] = SENDER_A ^ sendBuf[2];
-  sendBuf[4] = FLAG;
+// int sendDISC()
+// {
+//   unsigned char sendBuf[255];
+//   sendBuf[0] = FLAG;
+//   sendBuf[1] = SENDER_A;
+//   sendBuf[2] = DISC_C;
+//   sendBuf[3] = SENDER_A ^ DISC_C;
+//   sendBuf[4] = FLAG;
 
-  res = write(fd, sendBuf, 5);
+//   res = write(fd, sendBuf, 5);
 
-  printf("\nanswering with REJ message ");
-  fflush(stdout);
-  write(1, sendBuf, 5);
-  printf(" with a total size of %d bytes\n", res);
-  return 0;
-}
+//   printf("\nanswering with DISC message ");
+//   fflush(stdout);
+//   write(1, sendBuf, 5);
+//   printf(" with a total size of %d bytes\n", res);
+//   return 0;
+// }
+
+// int sendREJ()
+// {
+//   unsigned char sendBuf[255];
+//   sendBuf[0] = FLAG;
+//   sendBuf[1] = SENDER_A;
+//   sendBuf[2] = REJ_C_0;
+//   if (Nr == 1)
+//   {
+//     sendBuf[2] = REJ_C_1;
+//   }
+//   sendBuf[3] = SENDER_A ^ sendBuf[2];
+//   sendBuf[4] = FLAG;
+
+//   res = write(fd, sendBuf, 5);
+
+//   printf("\nanswering with REJ message ");
+//   fflush(stdout);
+//   write(1, sendBuf, 5);
+//   printf(" with a total size of %d bytes\n", res);
+//   return 0;
+// }
 
 int verifyBCC()
 {
@@ -452,7 +474,7 @@ int main(int argc, char **argv)
   }
 
   //WRITE BACK
-  sendUA();
+  sendSupervisionPacket(SENDER_A, UA_C);
   STOP = FALSE;
 
   /* 
@@ -470,7 +492,11 @@ int main(int argc, char **argv)
       {
         if (currentState == DONE)
         {
-          sendRR();
+          if(Nr==0)
+            sendSupervisionPacket(SENDER_A,RR_C_0);
+          else if(Nr==1)
+            sendSupervisionPacket(SENDER_A,RR_C_1);
+
           currentState = START;
           STOP = TRUE;
         }
