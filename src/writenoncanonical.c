@@ -33,11 +33,13 @@
 #define ESCAPE 0x7D
 #define ESCAPEFLAG 0x5E
 #define ESCAPEESCAPE 0x5D
+#define RR_C_0 0x05
+#define RR_C_1 0x85
 
 int currentState = 0;
 int currentPos = 4;
 int fd;
-char buf[255];
+unsigned char buf[255];
 int notAnswered = 1;
 int Ns=0;
 
@@ -45,19 +47,18 @@ int res;
 
 int sendUA()
 {
-  char sendBuf[255];
+  unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
   sendBuf[1] = SENDER_A;
   sendBuf[2] = UA_C;
   sendBuf[3] = SENDER_A ^ UA_C;
   sendBuf[4] = FLAG;
-  sendBuf[5] = '\0';
 
-  res = write(fd, sendBuf, 6);
+  res = write(fd, sendBuf, 5);
 
   printf("\nanswering with UA message ");
   fflush(stdout);
-  write(1, sendBuf, 6);
+  write(1, sendBuf, 5);
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
@@ -98,19 +99,18 @@ int stuffChar(char info,char * buf){
 
 int sendDISC()
 {
-  char sendBuf[255];
+  unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
   sendBuf[1] = SENDER_A;
   sendBuf[2] = DISC_C;
   sendBuf[3] = SENDER_A ^ DISC_C;
   sendBuf[4] = FLAG;
-  sendBuf[5] = '\0';
 
-  res = write(fd, sendBuf, 6);
+  res = write(fd, sendBuf, 5);
 
   printf("\nanswering with DISC message ");
   fflush(stdout);
-  write(1, sendBuf, 6);
+  write(1, sendBuf, 5);
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
@@ -128,13 +128,13 @@ int sendInfo(char *info, int size)
 
   sendMessage[3] = SENDER_A ^ sendMessage[2];
 
-  char bcc = '\0';
+  unsigned char bcc = '\0';
   int offset = 0;
   for(int i = 0 ; i<size;i++)
   {
     
     bcc = bcc^info[i];
-    char stuffedBuf[2];
+    unsigned char stuffedBuf[2];
     
     if(stuffChar(info[i],stuffedBuf)){
       sendMessage[4+i+offset] = stuffedBuf[0];
@@ -147,7 +147,7 @@ int sendInfo(char *info, int size)
   }
   
   
-  char stuffedBCC[2];
+  unsigned char stuffedBCC[2];
   if(stuffChar(bcc,stuffedBCC)){
      sendMessage[currentPos+offset] = stuffedBCC[0];
      offset++;
@@ -165,7 +165,7 @@ int sendInfo(char *info, int size)
   return 1;
 }
 
-int uaStateMachine(char *buf)
+int uaStateMachine(unsigned char *buf)
 {
 
   switch (currentState)
@@ -208,6 +208,91 @@ int uaStateMachine(char *buf)
     break;
   case C_RCV:
     if (buf[0] == (UA_C ^ SENDER_A))
+    {
+      currentState = BCC_OK;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+  case BCC_OK:
+    if (buf[0] == FLAG)
+    {
+      currentState = DONE;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  return FALSE;
+}
+
+
+int rrStateMachine(unsigned char *buf)
+{
+  switch (currentState)
+  {
+  case START:
+    if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    break;
+  case FLAG_RCV:
+    if (buf[0] == SENDER_A)
+    {
+      currentState = A_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+      return TRUE;
+    else
+    {
+      currentState = START;
+    }
+    break;
+  case A_RCV:
+    if(Ns == 0 && buf[0] == RR_C_1)
+    {
+      currentState = C_RCV;
+      return TRUE;
+    }
+    else if(Ns == 1 && buf[0] == RR_C_0)
+    {
+      currentState = C_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentState = START;
+    }
+    break;
+  case C_RCV:
+    if (Ns == 0 && buf[0] == (RR_C_1 ^ SENDER_A))
+    {
+      currentState = BCC_OK;
+      return TRUE;
+    }
+    else if (Ns == 1 && buf[0] == (RR_C_0 ^ SENDER_A))
     {
       currentState = BCC_OK;
       return TRUE;
@@ -333,6 +418,7 @@ int main(int argc, char **argv)
         fflush(stdout);
         write(1, msg, 6);
         printf(" with a total size of %d bytes\n", 6);
+        //read(fd,recvBuf,1);
         currentState = START;
         STOP = TRUE;
       }
@@ -350,10 +436,69 @@ int main(int argc, char **argv)
   char data[255];
   strcpy(data,"PA}PA");
   sendInfo(data,strlen(data));
+
+
+  recvBuf[0] = '\0';
+  msg[0] = '\0';
+  res = 0;
+  STOP = FALSE;
+  while (STOP == FALSE)
+  {
+    //printf("stuck in read\n");
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if (rrStateMachine(recvBuf))
+    {
+      strcat(msg, recvBuf);
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        printf("received RR message ");
+        fflush(stdout);
+        write(1, msg, 6);
+        printf(" with a total size of %d bytes\n", 6);
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
   
   strcpy(data,"padoru");
   sendInfo(data,strlen(data));
   
+  recvBuf[0] = '\0';
+  msg[0] = '\0';
+  res = 0;
+  STOP = FALSE;
+  while (STOP == FALSE)
+  {
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if (rrStateMachine(recvBuf))
+    {
+      strcat(msg, recvBuf);
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        printf("received RR message ");
+        fflush(stdout);
+        write(1, msg, 6);
+        printf(" with a total size of %d bytes\n", 6);
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
 
   sleep(1);
   if (tcsetattr(fd, TCSANOW, &oldtio) == -1)

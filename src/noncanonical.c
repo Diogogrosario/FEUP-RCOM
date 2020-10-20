@@ -49,37 +49,35 @@ int currentIndex = 0;
 
 int sendUA()
 {
-  char sendBuf[255];
+  unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
   sendBuf[1] = SENDER_A;
   sendBuf[2] = UA_C;
   sendBuf[3] = SENDER_A ^ UA_C;
   sendBuf[4] = FLAG;
-  sendBuf[5] = '\0';
 
-  res = write(fd, sendBuf, 6);
+  res = write(fd, sendBuf, 5);
 
   printf("\nanswering with UA message ");
   fflush(stdout);
-  write(1, sendBuf, 6);
+  write(1, sendBuf, 5);
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
 
 int sendRR()
 {
-  char sendBuf[255];
+  unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
   sendBuf[1] = SENDER_A;
-  sendBuf[2] = RR_C_0;
-  if(Nr == 1){
+  if(Nr == 0)
+    sendBuf[2] = RR_C_0;
+  else if (Nr == 1)
     sendBuf[2] = RR_C_1;
-  }
   sendBuf[3] = SENDER_A ^ sendBuf[2];
   sendBuf[4] = FLAG;
-  sendBuf[5] = '\0';
 
-  res = write(fd, sendBuf, 6);
+  res = write(fd, sendBuf, 5);
 
   printf("\nanswering with RR message ");
   fflush(stdout);
@@ -90,41 +88,40 @@ int sendRR()
 
 int sendDISC()
 {
-  char sendBuf[255];
+  unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
   sendBuf[1] = SENDER_A;
   sendBuf[2] = DISC_C;
   sendBuf[3] = SENDER_A ^ DISC_C;
   sendBuf[4] = FLAG;
-  sendBuf[5] = '\0';
 
-  res = write(fd, sendBuf, 6);
+  res = write(fd, sendBuf, 5);
 
   printf("\nanswering with DISC message ");
   fflush(stdout);
-  write(1, sendBuf, 6);
+  write(1, sendBuf, 5);
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
 
 int sendREJ()
 {
-  char sendBuf[255];
+  unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
   sendBuf[1] = SENDER_A;
   sendBuf[2] = REJ_C_0;
-  if(Nr == 1){
+  if (Nr == 1)
+  {
     sendBuf[2] = REJ_C_1;
   }
   sendBuf[3] = SENDER_A ^ sendBuf[2];
   sendBuf[4] = FLAG;
-  sendBuf[5] = '\0';
 
-  res = write(fd, sendBuf, 6);
+  res = write(fd, sendBuf, 5);
 
   printf("\nanswering with REJ message ");
   fflush(stdout);
-  write(1, sendBuf, 6);
+  write(1, sendBuf, 5);
   printf(" with a total size of %d bytes\n", res);
   return 0;
 }
@@ -133,9 +130,9 @@ int verifyBCC()
 {
   // printf("\n\n\n");
   // printf(" message length: %ld\n", currentIndex);
-  // printf(" last char os msg : %c\n", msg[currentIndex - 1]);
+  // printf(" last unsigned char os msg : %c\n", msg[currentIndex - 1]);
 
-  char bccControl = '\0';
+  unsigned char bccControl = '\0';
   for (int i = 4; i < currentIndex - 1; i++)
   {
     // printf(" calculting new bcc with : %c\n", msg[i]);
@@ -154,7 +151,7 @@ int verifyBCC()
 
 int infoStateMachine(char *buf)
 {
-  
+
   switch (currentState)
   {
   case START:
@@ -461,24 +458,29 @@ int main(int argc, char **argv)
   /* 
     ler os dados
   */
-  while (STOP == FALSE)
+  while (1)
   {
-    /* loop for input */
-    buf[0] = '\0';
-    res += read(fd, buf, 1); /* returns after 5 chars have been input */
-
-    if (infoStateMachine(buf))
+    while (STOP == FALSE)
     {
-      if (currentState == DONE)
+      /* loop for input */
+      buf[0] = '\0';
+      res += read(fd, buf, 1); /* returns after 5 chars have been input */
+
+      if (infoStateMachine(buf))
       {
-        currentState = START;
-        STOP = TRUE;
+        if (currentState == DONE)
+        {
+          sendRR();
+          currentState = START;
+          STOP = TRUE;
+        }
+      }
+      else
+      {
+        msg[0] = '\0';
       }
     }
-    else
-    {
-      msg[0] = '\0';
-    }
+    STOP = FALSE;
   }
 
   sleep(1);
