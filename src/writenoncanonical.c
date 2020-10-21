@@ -37,46 +37,70 @@
 #define RR_C_1 0x85
 #define REJ_C_0 0x01
 #define REJ_C_1 0x81
+#define MAX_SIZE 255
 
 volatile int STOP = FALSE;
 
-int maxTries = 3, currentTry = 0;
+struct linkLayer
+{
+  char port[20];                 /*Dispositivo /dev/ttySx, x = 0, 1*/
+  int baudRate;                  /*Velocidade de transmissão*/
+  unsigned int sequenceNumber;   /*Número de sequência da trama: 0, 1*/
+  unsigned int timeout;          /*Valor do temporizador: 1 s*/
+  unsigned int numTransmissions; /*Número de tentativas em caso de falha*/
+  int currentTry;                /*Número da tentativa atual em caso de falha*/
+  char frame[MAX_SIZE];          /*Trama*/
+  int frameSize;
+};
+
+struct linkLayer protocol;
+
+void fillProtocol(char* port, int Ns){
+  strcpy(protocol.port,port);
+  protocol.port[strlen(port)] = '\0'; 
+  protocol.baudRate = BAUDRATE;
+  protocol.sequenceNumber = Ns;
+  protocol.timeout = 1;
+  protocol.numTransmissions = 3;
+  protocol.frame[0] = '\0';
+  protocol.frameSize = 0;
+  protocol.currentTry = 0;
+}
+
 int currentState = 0;
 int currentPos = 4;
 int fd;
 unsigned char buf[255];
 int notAnswered = 1;
-int Ns=0;
-unsigned char frame[255];
-int frameSize = 0;
 int currentIndex = -1;
 
 int res;
 
 void atende() // atende alarme
 {
-  if (notAnswered && currentTry < maxTries)
+  if (notAnswered && protocol.currentTry < protocol.numTransmissions)
   {
-    write(fd,frame,frameSize);
+    write(fd, protocol.frame, protocol.frameSize);
     printf("Resending : ");
     fflush(stdout);
-    write(1,frame,frameSize+1);
+    write(1, protocol.frame, protocol.frameSize + 1);
     printf("\n");
-    alarm(3);
-    currentTry++;
+    alarm(protocol.timeout);
+    protocol.currentTry++;
   }
-  else if(currentTry>=maxTries){
+  else if (protocol.currentTry >= protocol.numTransmissions)
+  {
     alarm(0);
-    exit(-1); 
-  } 
+    exit(-1);
+  }
 }
 
 void updateNs()
 {
-  Ns = (Ns+1)%2;
+  protocol.sequenceNumber = (protocol.sequenceNumber + 1) % 2;
 }
 
-int sendSupervisionPacket(char addressField,char controlByte)
+int sendSupervisionPacket(char addressField, char controlByte)
 {
   unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
@@ -86,9 +110,9 @@ int sendSupervisionPacket(char addressField,char controlByte)
   sendBuf[4] = FLAG;
 
   res = write(fd, sendBuf, 5);
-  frame[0]='\0';
-  memcpy(frame,sendBuf,5);
-  frameSize=5;
+  protocol.frame[0] = '\0';
+  memcpy(protocol.frame, sendBuf, 5);
+  protocol.frameSize = 5;
 
   printf("\nsending packet: ");
   fflush(stdout);
@@ -97,78 +121,82 @@ int sendSupervisionPacket(char addressField,char controlByte)
   return 0;
 }
 
-int stuffChar(char info,unsigned char * buf){
-  if(info == FLAG){
+int stuffChar(char info, unsigned char *buf)
+{
+  if (info == FLAG)
+  {
     buf[0] = ESCAPE;
-    buf[1] = ESCAPEFLAG; 
+    buf[1] = ESCAPEFLAG;
     return TRUE;
   }
-  else if(info == ESCAPE){
+  else if (info == ESCAPE)
+  {
     buf[0] = ESCAPE;
     buf[1] = ESCAPEESCAPE;
     return TRUE;
   }
-  else{
+  else
+  {
     buf[0] = info;
     return FALSE;
   }
 }
 
-
 int sendInfo(char *info, int size)
 {
   currentPos = 4;
 
-  char sendMessage[255]="";
+  char sendMessage[255] = "";
   //WRITE
   sendMessage[0] = FLAG;
   sendMessage[1] = SENDER_A;
   sendMessage[2] = INFO_C_1;
-  if(Ns==0)
+  if (protocol.sequenceNumber == 0)
     sendMessage[2] = INFO_C_0;
 
   sendMessage[3] = SENDER_A ^ sendMessage[2];
 
   unsigned char bcc = '\0';
   int offset = 0;
-  for(int i = 0 ; i<size;i++)
+  for (int i = 0; i < size; i++)
   {
-    
-    bcc = bcc^info[i];
+
+    bcc = bcc ^ info[i];
     unsigned char stuffedBuf[2];
-    
-    if(stuffChar(info[i],stuffedBuf)){
-      sendMessage[4+i+offset] = stuffedBuf[0];
+
+    if (stuffChar(info[i], stuffedBuf))
+    {
+      sendMessage[4 + i + offset] = stuffedBuf[0];
       offset++;
-      sendMessage[4+i+offset] = stuffedBuf[1];
+      sendMessage[4 + i + offset] = stuffedBuf[1];
     }
     else
-      sendMessage[4+i+ offset] = stuffedBuf[0];
+      sendMessage[4 + i + offset] = stuffedBuf[0];
     currentPos++;
   }
-  
-  
+
   unsigned char stuffedBCC[2];
-  if(stuffChar(bcc,stuffedBCC)){
-     sendMessage[currentPos+offset] = stuffedBCC[0];
-     offset++;
-     sendMessage[currentPos+offset] = stuffedBCC[1];
+  if (stuffChar(bcc, stuffedBCC))
+  {
+    sendMessage[currentPos + offset] = stuffedBCC[0];
+    offset++;
+    sendMessage[currentPos + offset] = stuffedBCC[1];
   }
   else
-    sendMessage[currentPos+offset] = stuffedBCC[0];
+    sendMessage[currentPos + offset] = stuffedBCC[0];
   currentPos++;
-  sendMessage[currentPos+offset] = FLAG;
+  sendMessage[currentPos + offset] = FLAG;
   currentPos++;
 
-  res = write(fd, sendMessage, currentPos+offset+1);
-  frame[0]='\0';
-  memcpy(frame,sendMessage,currentPos+offset+1);
-  // frame = sendMessage;
-  frameSize=currentPos+offset+1;
+  res = write(fd, sendMessage, currentPos + offset + 1);
+  protocol.frame[0] = '\0';
+  memcpy(protocol.frame, sendMessage, currentPos + offset + 1);
+  // protocol.frame = sendMessage;
+  protocol.frameSize = currentPos + offset + 1;
 
-  write(1,sendMessage,res);
+  write(1, sendMessage, res);
   printf(" with a total size of %d bytes\n", res);
-  alarm(3);
+  alarm(protocol.timeout);
   return 1;
 }
 
@@ -257,7 +285,6 @@ int uaStateMachine(unsigned char *buf)
   return FALSE;
 }
 
-
 int rrStateMachine(unsigned char *buf)
 {
   switch (currentState)
@@ -286,25 +313,27 @@ int rrStateMachine(unsigned char *buf)
     }
     break;
   case A_RCV:
-    if(Ns == 0 && buf[0] == RR_C_1)
+    if (protocol.sequenceNumber == 0 && buf[0] == RR_C_1)
     {
       currentIndex++;
       currentState = C_RCV;
       return TRUE;
     }
-    else if(Ns == 1 && buf[0] == RR_C_0)
+    else if (protocol.sequenceNumber == 1 && buf[0] == RR_C_0)
     {
       currentIndex++;
       currentState = C_RCV;
       return TRUE;
     }
-    else if(Ns == 0 && buf[0] == REJ_C_1){
+    else if (protocol.sequenceNumber == 0 && buf[0] == REJ_C_1)
+    {
       atende();
       currentState = START;
       currentIndex = -1;
       return FALSE;
     }
-    else if(Ns == 1 && buf[0] == REJ_C_0){
+    else if (protocol.sequenceNumber == 1 && buf[0] == REJ_C_0)
+    {
       atende();
       currentState = START;
       currentIndex = -1;
@@ -323,13 +352,13 @@ int rrStateMachine(unsigned char *buf)
     }
     break;
   case C_RCV:
-    if (Ns == 0 && buf[0] == (RR_C_1 ^ SENDER_A))
+    if (protocol.sequenceNumber == 0 && buf[0] == (RR_C_1 ^ SENDER_A))
     {
       currentIndex++;
       currentState = BCC_OK;
       return TRUE;
     }
-    else if (Ns == 1 && buf[0] == (RR_C_0 ^ SENDER_A))
+    else if (protocol.sequenceNumber == 1 && buf[0] == (RR_C_0 ^ SENDER_A))
     {
       currentIndex++;
       currentState = BCC_OK;
@@ -367,9 +396,8 @@ int rrStateMachine(unsigned char *buf)
   return FALSE;
 }
 
-
-
-int readUA(){
+int readUA()
+{
   unsigned char recvBuf[255];
   char msg[255];
   while (STOP == FALSE)
@@ -383,7 +411,7 @@ int readUA(){
       if (currentState == DONE)
       {
         alarm(0);
-        currentTry = 0;
+        protocol.currentTry = 0;
         printf("received UA message ");
         fflush(stdout);
         write(1, msg, 6);
@@ -402,7 +430,8 @@ int readUA(){
   return 0;
 }
 
-int readRR(){
+int readRR()
+{
   unsigned char recvBuf[255];
   char msg[255];
   res = 0;
@@ -419,11 +448,11 @@ int readRR(){
       if (currentState == DONE)
       {
         alarm(0);
-        currentTry = 0;
+        protocol.currentTry = 0;
         printf("received RR message ");
         fflush(stdout);
-        write(1, msg, currentIndex+1);
-        printf(" with a total size of %d bytes\n", currentIndex+1);
+        write(1, msg, currentIndex + 1);
+        printf(" with a total size of %d bytes\n", currentIndex + 1);
         updateNs();
         currentIndex = -1;
         currentState = START;
@@ -438,9 +467,8 @@ int readRR(){
   return 0;
 }
 
-
 int main(int argc, char **argv)
-{
+{ 
 
   struct termios oldtio, newtio;
 
@@ -458,8 +486,8 @@ int main(int argc, char **argv)
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-
-  fd = open(argv[1], O_RDWR | O_NOCTTY);
+  fillProtocol(argv[1], 0);
+  fd = open(protocol.port, O_RDWR | O_NOCTTY);
   if (fd < 0)
   {
     perror(argv[1]);
@@ -473,7 +501,7 @@ int main(int argc, char **argv)
   }
 
   bzero(&newtio, sizeof(newtio));
-  newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+  newtio.c_cflag = protocol.baudRate | CS8 | CLOCAL | CREAD;
   newtio.c_iflag = IGNPAR;
   newtio.c_oflag = 0;
 
@@ -501,7 +529,7 @@ int main(int argc, char **argv)
 
   (void)signal(SIGALRM, atende); // instala  rotina que atende interrupcao
 
-  alarm(3);
+  alarm(protocol.timeout);
 
   readUA();
 
@@ -510,17 +538,16 @@ int main(int argc, char **argv)
   */
 
   char data[255];
-  strcpy(data,"Padoru");
-  sendInfo(data,strlen(data));
-  readRR();  
-  strcpy(data,"Padoru");
-  sendInfo(data,strlen(data));
+  strcpy(data, "Padoru");
+  sendInfo(data, strlen(data));
+  readRR();
+  strcpy(data, "Padoru");
+  sendInfo(data, strlen(data));
   readRR();
 
-  sendSupervisionPacket(SENDER_A,DISC_C);
+  sendSupervisionPacket(SENDER_A, DISC_C);
   //readDISC();
-  sendSupervisionPacket(RECEIVER_A,UA_C);
-  
+  sendSupervisionPacket(RECEIVER_A, UA_C);
 
   sleep(1);
   if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
