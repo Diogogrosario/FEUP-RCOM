@@ -51,10 +51,10 @@ int frameSize = 0;
 
 void updateNr()
 {
-  Nr = (Nr+1)%2;
+  Nr = (Nr + 1) % 2;
 }
 
-int sendSupervisionPacket(unsigned char addressField,unsigned char controlByte)
+int sendSupervisionPacket(unsigned char addressField, unsigned char controlByte)
 {
   unsigned char sendBuf[255];
   sendBuf[0] = FLAG;
@@ -70,8 +70,8 @@ int sendSupervisionPacket(unsigned char addressField,unsigned char controlByte)
 
   frame[0] = '\0';
   res = write(fd, sendBuf, 5);
-  memcpy(frame,sendBuf,5);
-  frameSize=5;
+  memcpy(frame, sendBuf, 5);
+  frameSize = 5;
 
   printf("\nsending packet: ");
   fflush(stdout);
@@ -148,6 +148,15 @@ int infoStateMachine(char *buf)
       currentIndex++;
       return TRUE;
     }
+    else if((Nr == 0 && buf[0] == INFO_C_0) || (Nr == 1 && buf[0] == INFO_C_1)){
+      currentState = START;
+      printf("\nDuplicate\n");
+      if (Nr == 1)
+        sendSupervisionPacket(SENDER_A, RR_C_0);
+      else if (Nr == 0)
+        sendSupervisionPacket(SENDER_A, RR_C_1);
+      return TRUE;
+    }
     else if (buf[0] == FLAG)
     {
       currentState = FLAG_RCV;
@@ -178,8 +187,12 @@ int infoStateMachine(char *buf)
       currentState = FLAG_RCV;
       return TRUE;
     }
-    else
-    {
+    else{
+      if(Nr == 0)
+        sendSupervisionPacket(SENDER_A,REJ_C_0);
+      else if(Nr == 1)
+        sendSupervisionPacket(SENDER_A,REJ_C_1);
+      
       currentState = START;
     }
   case BCC_OK: //receives info
@@ -190,7 +203,23 @@ int infoStateMachine(char *buf)
       currentIndex++;
       res = 0;
       currentState = DONE;
-      write(1,msg,currentIndex);
+      if (Nr == 1 && msg[2] == INFO_C_1)
+      {
+        msg[0] = '\0';
+      }
+      else if (Nr == 0 && msg[2] == INFO_C_0)
+      {
+        msg[0] = '\0';
+      }
+      else
+      {
+        write(1, msg, currentIndex);
+        if (Nr == 0)
+          sendSupervisionPacket(SENDER_A, RR_C_0);
+        else if (Nr == 1)
+          sendSupervisionPacket(SENDER_A, RR_C_1);
+        updateNr();
+      }
       return TRUE;
     }
     else if (buf[0] == ESCAPE)
@@ -254,8 +283,9 @@ int setStateMachine(char *buf)
       currentIndex++;
       return TRUE;
     }
-    else if (buf[0] == FLAG){
-      currentIndex=1;
+    else if (buf[0] == FLAG)
+    {
+      currentIndex = 1;
       return TRUE;
     }
     else
@@ -272,7 +302,7 @@ int setStateMachine(char *buf)
     }
     else if (buf[0] == FLAG)
     {
-      currentIndex=1;
+      currentIndex = 1;
       currentState = FLAG_RCV;
       return TRUE;
     }
@@ -290,7 +320,7 @@ int setStateMachine(char *buf)
     }
     else if (buf[0] == FLAG)
     {
-      currentIndex=1;
+      currentIndex = 1;
       currentState = FLAG_RCV;
       return TRUE;
     }
@@ -315,15 +345,73 @@ int setStateMachine(char *buf)
   default:
     break;
   }
-  currentIndex=0;
+  currentIndex = 0;
   return FALSE;
+}
+
+int readInfo()
+{
+  char buf[255];
+  while (STOP == FALSE)
+  {
+    /* loop for input */
+    buf[0] = '\0';
+    res += read(fd, buf, 1); /* returns after 5 chars have been input */
+
+    if (infoStateMachine(buf))
+    {
+      if (currentState == DONE)
+      {
+        currentIndex = -1;
+
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
+  STOP = FALSE;
+  return 1;
+}
+
+int readSET()
+{
+  char buf[255];
+  while (STOP == FALSE)
+  {
+    /* loop for input */
+    res += read(fd, buf, 1); /* returns after 5 chars have been input */
+    if (setStateMachine(buf))
+    {
+      msg[currentIndex] = buf[0];
+      res = 0;
+      if (currentState == DONE)
+      {
+        printf("received SET message ");
+        fflush(stdout);
+        write(1, msg, currentIndex + 1);
+        printf(" with a total size of %d bytes", currentIndex + 1);
+        currentIndex = -1;
+        currentState = START;
+        STOP = TRUE;
+        msg[0] = '\0';
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
+  return 0;
 }
 
 int main(int argc, char **argv)
 {
 
   struct termios oldtio, newtio;
-  char buf[255];
 
   if ((argc < 2) ||
       ((strcmp("/dev/ttyS10", argv[1]) != 0) &&
@@ -378,31 +466,7 @@ int main(int argc, char **argv)
   printf("New termios structure set\n");
 
   //RECEIVE
-  while (STOP == FALSE)
-  {
-    /* loop for input */
-    res += read(fd, buf, 1); /* returns after 5 chars have been input */
-    if (setStateMachine(buf))
-    {
-      msg[currentIndex] = buf[0];
-      res = 0;
-      if (currentState == DONE)
-      {
-        printf("received SET message ");
-        fflush(stdout);
-        write(1, msg, currentIndex+1);
-        printf(" with a total size of %d bytes", currentIndex+1);
-        currentIndex = -1;
-        currentState = START;
-        STOP = TRUE;
-        msg[0] = '\0';
-      }
-    }
-    else
-    {
-      msg[0] = '\0';
-    }
-  }
+  readSET();
 
   //WRITE BACK
   sendSupervisionPacket(SENDER_A, UA_C);
@@ -413,34 +477,12 @@ int main(int argc, char **argv)
   */
   while (1)
   {
-    while (STOP == FALSE)
-    {
-      /* loop for input */
-      buf[0] = '\0';
-      res += read(fd, buf, 1); /* returns after 5 chars have been input */
-
-      if (infoStateMachine(buf))
-      {
-        if (currentState == DONE)
-        {
-          currentIndex = -1;
-          if(Nr==0)
-            sendSupervisionPacket(SENDER_A,RR_C_0);
-          else if(Nr==1)
-            sendSupervisionPacket(SENDER_A,RR_C_1);
-
-          currentState = START;
-          STOP = TRUE;
-          updateNr();
-        }
-      }
-      else
-      {
-        msg[0] = '\0';
-      }
-    }
-    STOP = FALSE;
+    readInfo();
   }
+
+  //readDISC();
+  sendSupervisionPacket(RECEIVER_A, DISC_C);
+  //readUA();
 
   sleep(1);
   tcsetattr(fd, TCSANOW, &oldtio);

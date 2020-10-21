@@ -35,6 +35,10 @@
 #define ESCAPEESCAPE 0x5D
 #define RR_C_0 0x05
 #define RR_C_1 0x85
+#define REJ_C_0 0x01
+#define REJ_C_1 0x81
+
+volatile int STOP = FALSE;
 
 int maxTries = 3, currentTry = 0;
 int currentState = 0;
@@ -48,6 +52,29 @@ int frameSize = 0;
 int currentIndex = -1;
 
 int res;
+
+void atende() // atende alarme
+{
+  if (notAnswered && currentTry < maxTries)
+  {
+    write(fd,frame,frameSize);
+    printf("Resending : ");
+    fflush(stdout);
+    write(1,frame,frameSize+1);
+    printf("\n");
+    alarm(3);
+    currentTry++;
+  }
+  else if(currentTry>=maxTries){
+    alarm(0);
+    exit(-1); 
+  } 
+}
+
+void updateNs()
+{
+  Ns = (Ns+1)%2;
+}
 
 int sendSupervisionPacket(char addressField,char controlByte)
 {
@@ -70,7 +97,7 @@ int sendSupervisionPacket(char addressField,char controlByte)
   return 0;
 }
 
-int stuffChar(char info,char * buf){
+int stuffChar(char info,unsigned char * buf){
   if(info == FLAG){
     buf[0] = ESCAPE;
     buf[1] = ESCAPEFLAG; 
@@ -87,14 +114,11 @@ int stuffChar(char info,char * buf){
   }
 }
 
-void updateNs()
-{
-  Ns = (Ns+1)%2;
-}
 
 int sendInfo(char *info, int size)
 {
   currentPos = 4;
+
   char sendMessage[255]="";
   //WRITE
   sendMessage[0] = FLAG;
@@ -274,6 +298,18 @@ int rrStateMachine(unsigned char *buf)
       currentState = C_RCV;
       return TRUE;
     }
+    else if(Ns == 0 && buf[0] == REJ_C_1){
+      atende();
+      currentState = START;
+      currentIndex = -1;
+      return FALSE;
+    }
+    else if(Ns == 1 && buf[0] == REJ_C_0){
+      atende();
+      currentState = START;
+      currentIndex = -1;
+      return FALSE;
+    }
     else if (buf[0] == FLAG)
     {
       currentIndex = 0;
@@ -331,32 +367,84 @@ int rrStateMachine(unsigned char *buf)
   return FALSE;
 }
 
-void atende() // atende alarme
-{
-  if (notAnswered && currentTry < maxTries)
+
+
+int readUA(){
+  unsigned char recvBuf[255];
+  char msg[255];
+  while (STOP == FALSE)
   {
-    write(fd,frame,frameSize);
-    printf("Resending : ");
-    fflush(stdout);
-    write(1,frame,frameSize+1);
-    printf("\n");
-    alarm(3);
-    currentTry++;
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if (uaStateMachine(recvBuf))
+    {
+      msg[currentIndex] = recvBuf[0];
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        currentTry = 0;
+        printf("received UA message ");
+        fflush(stdout);
+        write(1, msg, 6);
+        printf(" with a total size of %d bytes\n", 6);
+        //read(fd,recvBuf,1);
+        currentIndex = -1;
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
   }
-  else if(currentTry>=maxTries){
-    alarm(0);
-    exit(-1); 
-  } 
+  return 0;
 }
 
-volatile int STOP = FALSE;
+int readRR(){
+  unsigned char recvBuf[255];
+  char msg[255];
+  res = 0;
+  STOP = FALSE;
+  while (STOP == FALSE)
+  {
+    //printf("stuck in read\n");
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if (rrStateMachine(recvBuf))
+    {
+      msg[currentIndex] = recvBuf[0];
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        currentTry = 0;
+        printf("received RR message ");
+        fflush(stdout);
+        write(1, msg, currentIndex+1);
+        printf(" with a total size of %d bytes\n", currentIndex+1);
+        updateNs();
+        currentIndex = -1;
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
+  return 0;
+}
+
 
 int main(int argc, char **argv)
 {
-  int c;
+
   struct termios oldtio, newtio;
 
-  int i, sum = 0, speed = 0;
+  //int i, sum = 0, speed = 0, c;
 
   if ((argc < 2) ||
       ((strcmp("/dev/ttyS10", argv[1]) != 0) &&
@@ -415,116 +503,24 @@ int main(int argc, char **argv)
 
   alarm(3);
 
-  char recvBuf[255];
-  //RECEIVE BACK
-  char msg[255];
-  while (STOP == FALSE)
-  {
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
-    if (uaStateMachine(recvBuf))
-    {
-      msg[currentIndex] = recvBuf[0];
-      res = 0;
-      if (currentState == DONE)
-      {
-        alarm(0);
-        currentTry = 0;
-        printf("received UA message ");
-        fflush(stdout);
-        write(1, msg, 6);
-        printf(" with a total size of %d bytes\n", 6);
-        //read(fd,recvBuf,1);
-        currentIndex = -1;
-        currentState = START;
-        STOP = TRUE;
-      }
-    }
-    else
-    {
-      msg[0] = '\0';
-    }
-  }
+  readUA();
 
   /* 
     Criação de dados.
   */
 
   char data[255];
-  strcpy(data,"PA}PA");
-  sendInfo(data,strlen(data));
-
-
-  recvBuf[0] = '\0';
-  msg[0] = '\0';
-  res = 0;
-  STOP = FALSE;
-  while (STOP == FALSE)
-  {
-    //printf("stuck in read\n");
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
-    if (rrStateMachine(recvBuf))
-    {
-      msg[currentIndex] = recvBuf[0];
-      res = 0;
-      if (currentState == DONE)
-      {
-        alarm(0);
-        currentTry = 0;
-        printf("received RR message ");
-        fflush(stdout);
-        write(1, msg, currentIndex+1);
-        printf(" with a total size of %d bytes\n", currentIndex+1);
-        updateNs();
-        currentIndex = -1;
-        currentState = START;
-        STOP = TRUE;
-      }
-    }
-    else
-    {
-      msg[0] = '\0';
-    }
-  }
-
-  
   strcpy(data,"Padoru");
   sendInfo(data,strlen(data));
+  readRR();  
+  strcpy(data,"Padoru");
+  sendInfo(data,strlen(data));
+  readRR();
 
-
-  recvBuf[0] = '\0';
-  msg[0] = '\0';
-  res = 0;
-  STOP = FALSE;
-  while (STOP == FALSE)
-  {
-    //printf("stuck in read\n");
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
-    if (rrStateMachine(recvBuf))
-    {
-      msg[currentIndex] = recvBuf[0];
-      res = 0;
-      if (currentState == DONE)
-      {
-        alarm(0);
-        currentTry = 0;
-        printf("received RR message ");
-        fflush(stdout);
-        write(1, msg, currentIndex+1);
-        printf(" with a total size of %d bytes\n", currentIndex+1);
-        updateNs();
-        currentIndex = -1;
-        currentState = START;
-        STOP = TRUE;
-      }
-    }
-    else
-    {
-      msg[0] = '\0';
-    }
-  }
+  sendSupervisionPacket(SENDER_A,DISC_C);
+  //readDISC();
+  sendSupervisionPacket(RECEIVER_A,UA_C);
+  
 
   sleep(1);
   if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
