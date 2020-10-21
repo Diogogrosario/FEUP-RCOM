@@ -36,22 +36,46 @@
 #define ESCAPE 0x7D
 #define ESCAPEFLAG 0x5E
 #define ESCAPEESCAPE 0x5D
+#define MAX_SIZE 255
 
 volatile int STOP = FALSE;
 
 int currentState = 0;
-int Nr = 1;
 
 char msg[255];
 int res;
 int fd;
 int currentIndex = -1;
-unsigned char frame[255];
-int frameSize = 0;
+
+struct linkLayer
+{
+  char port[20];                 /*Dispositivo /dev/ttySx, x = 0, 1*/
+  int baudRate;                  /*Velocidade de transmissão*/
+  unsigned int sequenceNumber;   /*Número de sequência da trama: 0, 1*/
+  unsigned int timeout;          /*Valor do temporizador: 1 s*/
+  unsigned int numTransmissions; /*Número de tentativas em caso de falha*/
+  int currentTry;                /*Número da tentativa atual em caso de falha*/
+  char frame[MAX_SIZE];          /*Trama*/
+  int frameSize;
+};
+
+struct linkLayer protocol;
+
+void fillProtocol(char* port, int Nr){
+  strcpy(protocol.port,port);
+  protocol.port[strlen(port)] = '\0'; 
+  protocol.baudRate = BAUDRATE;
+  protocol.sequenceNumber = Nr;
+  protocol.timeout = 1;
+  protocol.numTransmissions = 3;
+  protocol.frame[0] = '\0';
+  protocol.frameSize = 0;
+  protocol.currentTry = 0;
+}
 
 void updateNr()
 {
-  Nr = (Nr + 1) % 2;
+  protocol.sequenceNumber = (protocol.sequenceNumber + 1) % 2;
 }
 
 int sendSupervisionPacket(unsigned char addressField, unsigned char controlByte)
@@ -68,10 +92,10 @@ int sendSupervisionPacket(unsigned char addressField, unsigned char controlByte)
   // printf("BCC: %x          sendbuf[3]: %x\n",addressField ^ controlByte,sendBuf[3]);
   // printf("Flag: %x          sendbuf[4]: %x\n",FLAG,sendBuf[4]);
 
-  frame[0] = '\0';
+  protocol.frame[0] = '\0';
   res = write(fd, sendBuf, 5);
-  memcpy(frame, sendBuf, 5);
-  frameSize = 5;
+  memcpy(protocol.frame, sendBuf, 5);
+  protocol.frameSize = 5;
 
   printf("\nsending packet: ");
   fflush(stdout);
@@ -134,26 +158,26 @@ int infoStateMachine(char *buf)
     }
     break;
   case A_RCV:
-    if (Nr == 1 && buf[0] == INFO_C_0)
+    if (protocol.sequenceNumber == 1 && buf[0] == INFO_C_0)
     {
       currentState = C_RCV;
       msg[currentIndex] = buf[0];
       currentIndex++;
       return TRUE;
     }
-    else if (Nr == 0 && buf[0] == INFO_C_1)
+    else if (protocol.sequenceNumber == 0 && buf[0] == INFO_C_1)
     {
       currentState = C_RCV;
       msg[currentIndex] = buf[0];
       currentIndex++;
       return TRUE;
     }
-    else if((Nr == 0 && buf[0] == INFO_C_0) || (Nr == 1 && buf[0] == INFO_C_1)){
+    else if((protocol.sequenceNumber == 0 && buf[0] == INFO_C_0) || (protocol.sequenceNumber == 1 && buf[0] == INFO_C_1)){
       currentState = START;
       printf("\nDuplicate\n");
-      if (Nr == 1)
+      if (protocol.sequenceNumber == 1)
         sendSupervisionPacket(SENDER_A, RR_C_0);
-      else if (Nr == 0)
+      else if (protocol.sequenceNumber == 0)
         sendSupervisionPacket(SENDER_A, RR_C_1);
       return TRUE;
     }
@@ -168,14 +192,14 @@ int infoStateMachine(char *buf)
     }
     break;
   case C_RCV:
-    if (Nr == 1 && buf[0] == (SET_C ^ INFO_C_0))
+    if (protocol.sequenceNumber == 1 && buf[0] == (SET_C ^ INFO_C_0))
     {
       currentState = BCC_OK;
       msg[currentIndex] = buf[0];
       currentIndex++;
       return TRUE;
     }
-    else if (Nr == 0 && buf[0] == (SET_C ^ INFO_C_1))
+    else if (protocol.sequenceNumber == 0 && buf[0] == (SET_C ^ INFO_C_1))
     {
       currentState = BCC_OK;
       msg[currentIndex] = buf[0];
@@ -188,9 +212,9 @@ int infoStateMachine(char *buf)
       return TRUE;
     }
     else{
-      if(Nr == 0)
+      if(protocol.sequenceNumber == 0)
         sendSupervisionPacket(SENDER_A,REJ_C_0);
-      else if(Nr == 1)
+      else if(protocol.sequenceNumber == 1)
         sendSupervisionPacket(SENDER_A,REJ_C_1);
       
       currentState = START;
@@ -203,20 +227,20 @@ int infoStateMachine(char *buf)
       currentIndex++;
       res = 0;
       currentState = DONE;
-      if (Nr == 1 && msg[2] == INFO_C_1)
+      if (protocol.sequenceNumber == 1 && msg[2] == INFO_C_1)
       {
         msg[0] = '\0';
       }
-      else if (Nr == 0 && msg[2] == INFO_C_0)
+      else if (protocol.sequenceNumber == 0 && msg[2] == INFO_C_0)
       {
         msg[0] = '\0';
       }
       else
       {
         write(1, msg, currentIndex);
-        if (Nr == 0)
+        if (protocol.sequenceNumber == 0)
           sendSupervisionPacket(SENDER_A, RR_C_0);
-        else if (Nr == 1)
+        else if (protocol.sequenceNumber == 1)
           sendSupervisionPacket(SENDER_A, RR_C_1);
         updateNr();
       }
@@ -425,7 +449,7 @@ int main(int argc, char **argv)
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-
+  fillProtocol(argv[1],1);
   fd = open(argv[1], O_RDWR | O_NOCTTY);
   if (fd < 0)
   {
@@ -440,7 +464,7 @@ int main(int argc, char **argv)
   }
 
   bzero(&newtio, sizeof(newtio));
-  newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+  newtio.c_cflag = protocol.baudRate | CS8 | CLOCAL | CREAD;
   newtio.c_iflag = IGNPAR;
   newtio.c_oflag = 0;
 
