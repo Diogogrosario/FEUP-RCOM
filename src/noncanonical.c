@@ -10,21 +10,15 @@ static int currentState = 0;
 struct linkLayer protocol;
 struct termios oldtio, newtio;
 
-
 char msg[255];
 static int res;
 static int currentIndex = -1;
 
 int verifyBCC()
 {
-  // printf("\n\n\n");
-  // printf(" message length: %ld\n", currentIndex);
-  // printf(" last unsigned char os msg : %c\n", msg[currentIndex - 1]);
-
   unsigned char bccControl = '\0';
   for (int i = 4; i < currentIndex - 1; i++)
   {
-    // printf(" calculting new bcc with : %c\n", msg[i]);
     bccControl ^= msg[i];
   }
   if (msg[currentIndex - 1] == bccControl)
@@ -32,21 +26,19 @@ int verifyBCC()
     printf("\nBCC OK accepting data\n");
     return TRUE;
   }
-  // printf("\n\n\n");
-  // printf("Calculated BCC : %c", bccControl);
-  // printf("\n\n\n");
+
   return FALSE;
 }
 
 int infoStateMachine(char *buf, int fd)
 {
-
+  static int numberOfRejs=0;
   switch (currentState)
   {
   case START:
     if (buf[0] == FLAG)
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = FLAG_RCV;
       msg[currentIndex] = buf[0];
       currentIndex++;
@@ -83,7 +75,8 @@ int infoStateMachine(char *buf, int fd)
       currentIndex++;
       return TRUE;
     }
-    else if((protocol.sequenceNumber == 0 && buf[0] == INFO_C_0) || (protocol.sequenceNumber == 1 && buf[0] == INFO_C_1)){
+    else if ((protocol.sequenceNumber == 0 && buf[0] == INFO_C_0) || (protocol.sequenceNumber == 1 && buf[0] == INFO_C_1))
+    {
       currentState = START;
       printf("\nDuplicate\n");
       if (protocol.sequenceNumber == 1)
@@ -103,14 +96,14 @@ int infoStateMachine(char *buf, int fd)
     }
     break;
   case C_RCV:
-    if (protocol.sequenceNumber == 1 && buf[0] == (SET_C ^ INFO_C_0))
+    if (protocol.sequenceNumber == 1 && buf[0] == (SENDER_A ^ INFO_C_0))
     {
       currentState = BCC_OK;
       msg[currentIndex] = buf[0];
       currentIndex++;
       return TRUE;
     }
-    else if (protocol.sequenceNumber == 0 && buf[0] == (SET_C ^ INFO_C_1))
+    else if (protocol.sequenceNumber == 0 && buf[0] == (SENDER_A ^ INFO_C_1))
     {
       currentState = BCC_OK;
       msg[currentIndex] = buf[0];
@@ -122,40 +115,60 @@ int infoStateMachine(char *buf, int fd)
       currentState = FLAG_RCV;
       return TRUE;
     }
-    else{
-      if(protocol.sequenceNumber == 0)
-        sendSupervisionPacket(SENDER_A,REJ_C_0, &protocol, fd);
-      else if(protocol.sequenceNumber == 1)
-        sendSupervisionPacket(SENDER_A,REJ_C_1, &protocol, fd);
-      
+    else
+    {
+      if(numberOfRejs>=3)
+        exit(1);
+      numberOfRejs++;
+      if (protocol.sequenceNumber == 0)
+        sendSupervisionPacket(SENDER_A, REJ_C_0, &protocol, fd);
+      else if (protocol.sequenceNumber == 1)
+        sendSupervisionPacket(SENDER_A, REJ_C_1, &protocol, fd);
+
       currentState = START;
     }
   case BCC_OK: //receives info
     if (buf[0] == FLAG)
     {
-      verifyBCC();
-      msg[currentIndex] = buf[0];
-      currentIndex++;
-      res = 0;
-      currentState = DONE;
-      if (protocol.sequenceNumber == 1 && msg[2] == INFO_C_1)
+      if (verifyBCC())
       {
-        msg[0] = '\0';
-      }
-      else if (protocol.sequenceNumber == 0 && msg[2] == INFO_C_0)
-      {
-        msg[0] = '\0';
+        msg[currentIndex] = buf[0];
+        currentIndex++;
+        res = 0;
+        currentState = DONE;
+        if (protocol.sequenceNumber == 1 && msg[2] == INFO_C_1)
+        {
+          msg[0] = '\0';
+        }
+        else if (protocol.sequenceNumber == 0 && msg[2] == INFO_C_0)
+        {
+          msg[0] = '\0';
+        }
+        else
+        {
+          write(1, msg, currentIndex);
+          if (protocol.sequenceNumber == 0)
+            sendSupervisionPacket(SENDER_A, RR_C_0, &protocol, fd);
+          else if (protocol.sequenceNumber == 1)
+            sendSupervisionPacket(SENDER_A, RR_C_1, &protocol, fd);
+          updateSequenceNumber(&protocol);
+        }
+        return TRUE;
       }
       else
       {
-        write(1, msg, currentIndex);
+        if (numberOfRejs >= 3)
+          exit(1);
+        numberOfRejs++;
+        printf("\nRejecting\n");
+        
         if (protocol.sequenceNumber == 0)
-          sendSupervisionPacket(SENDER_A, RR_C_0, &protocol, fd);
+          sendSupervisionPacket(SENDER_A, REJ_C_0, &protocol, fd);
         else if (protocol.sequenceNumber == 1)
-          sendSupervisionPacket(SENDER_A, RR_C_1, &protocol, fd);
-        updateSequenceNumber(&protocol);
+          sendSupervisionPacket(SENDER_A, REJ_C_1, &protocol, fd);
+
+        currentState = START;
       }
-      return TRUE;
     }
     else if (buf[0] == ESCAPE)
     {
@@ -286,6 +299,7 @@ int setStateMachine(char *buf)
 
 int readInfo(int fd)
 {
+  STOP = FALSE;
   char buf[255];
   while (STOP == FALSE)
   {
@@ -314,6 +328,8 @@ int readInfo(int fd)
 
 int readSET(int fd)
 {
+  STOP = FALSE;
+
   char buf[255];
   while (STOP == FALSE)
   {
@@ -346,52 +362,52 @@ int readSET(int fd)
 
 void closeReader(int fd)
 {
-    sleep(1);
-    tcsetattr(fd, TCSANOW, &oldtio);
-    close(fd);
+  sleep(1);
+  tcsetattr(fd, TCSANOW, &oldtio);
+  close(fd);
 }
 
-int openReader(char * port)
-{ 
-    fillProtocol(&protocol, port, 1);
-    int fd = open(protocol.port, O_RDWR | O_NOCTTY);
-    if (fd < 0)
-    {
-        perror(protocol.port);
-        exit(-1);
-    }
+int openReader(char *port)
+{
+  fillProtocol(&protocol, port, 1);
+  int fd = open(protocol.port, O_RDWR | O_NOCTTY);
+  if (fd < 0)
+  {
+    perror(protocol.port);
+    exit(-1);
+  }
 
-    if (tcgetattr(fd, &oldtio) == -1)
-    { /* save current port settings */
-        perror("tcgetattr");
-        exit(-1);
-    }
+  if (tcgetattr(fd, &oldtio) == -1)
+  { /* save current port settings */
+    perror("tcgetattr");
+    exit(-1);
+  }
 
-    bzero(&newtio, sizeof(newtio));
-    newtio.c_cflag = protocol.baudRate | CS8 | CLOCAL | CREAD;
-    newtio.c_iflag = IGNPAR;
-    newtio.c_oflag = 0;
+  bzero(&newtio, sizeof(newtio));
+  newtio.c_cflag = protocol.baudRate | CS8 | CLOCAL | CREAD;
+  newtio.c_iflag = IGNPAR;
+  newtio.c_oflag = 0;
 
-    /* set input mode (non-canonical, no echo,...) */
-    newtio.c_lflag = 0;
+  /* set input mode (non-canonical, no echo,...) */
+  newtio.c_lflag = 0;
 
-    newtio.c_cc[VTIME] = 0; /* inter-character timer unused */
-    newtio.c_cc[VMIN] = 1;  /* blocking read until 1 char received */
+  newtio.c_cc[VTIME] = 0; /* inter-character timer unused */
+  newtio.c_cc[VMIN] = 1;  /* blocking read until 1 char received */
 
-    /* 
+  /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
     leitura do(s) pr�ximo(s) caracter(es)
   */
 
-    tcflush(fd, TCIOFLUSH);
+  tcflush(fd, TCIOFLUSH);
 
-    if (tcsetattr(fd, TCSANOW, &newtio) == -1)
-    {
-        perror("tcsetattr");
-        exit(-1);
-    }
+  if (tcsetattr(fd, TCSANOW, &newtio) == -1)
+  {
+    perror("tcsetattr");
+    exit(-1);
+  }
 
-    return fd;
+  return fd;
 }
 
 void setupReaderConnection(int fd)
@@ -407,7 +423,7 @@ void setupReaderConnection(int fd)
 // {
 //   STOP = FALSE;
 
-//   /* 
+//   /*
 //     ler os dados
 //   */
 //   while (1)

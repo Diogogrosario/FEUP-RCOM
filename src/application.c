@@ -3,6 +3,8 @@
 #include "application.h"
 #include "common.h"
 
+#define CHUNK_SIZE 250
+
 struct applicationLayer app;
 
 int llopen(char * port, int status)
@@ -45,12 +47,17 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    if (strcmp(argv[1], "writer"))
+    if (!strcmp(argv[1], "writer"))
     {
+        char msg[] = "padoru";
+        sendInfo(msg,strlen(msg),app.fileDescriptor);
+        readRR(app.fileDescriptor);
+
         closeWriter(app.fileDescriptor);
     }
-    else if (strcmp(argv[1], "receiver"))
+    else if (!strcmp(argv[1], "receiver"))
     {
+        readInfo(app.fileDescriptor);
         closeReader(app.fileDescriptor);
     }
 

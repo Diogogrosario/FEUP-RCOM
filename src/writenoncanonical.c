@@ -13,7 +13,7 @@ struct termios oldtio, newtio;
 
 static int currentState = 0;
 static int currentPos = 4;
-unsigned char buf[255];
+unsigned char buf[506];
 static int currentIndex = -1;
 static int activatedAlarm = FALSE;
 
@@ -110,12 +110,13 @@ int sendInfo(char *info, int size, int fd)
 {
   currentPos = 4;
 
-  char sendMessage[255] = "";
+  char sendMessage[507] = "";
   //WRITE
   sendMessage[0] = FLAG;
   sendMessage[1] = SENDER_A;
-  sendMessage[2] = INFO_C_1;
-  if (protocol.sequenceNumber == 0)
+  if (protocol.sequenceNumber == 1)
+    sendMessage[2] = INFO_C_1;
+  else if (protocol.sequenceNumber == 0)
     sendMessage[2] = INFO_C_0;
 
   sendMessage[3] = SENDER_A ^ sendMessage[2];
@@ -294,6 +295,7 @@ int rrStateMachine(unsigned char *buf, int fd)
     {
       if(protocol.currentTry>=protocol.numTransmissions)
         exit(1);
+      printf("\nResending");
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
       protocol.currentTry++;
@@ -305,6 +307,7 @@ int rrStateMachine(unsigned char *buf, int fd)
     {
       if(protocol.currentTry>=protocol.numTransmissions)
         exit(1);
+      printf("\nResending");
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
       protocol.currentTry++;
@@ -371,6 +374,8 @@ int rrStateMachine(unsigned char *buf, int fd)
 
 int readUA(int fd)
 {
+  STOP=FALSE;
+
   unsigned char recvBuf[255];
   char msg[255];
   while (STOP == FALSE)
@@ -380,6 +385,7 @@ int readUA(int fd)
     if(activatedAlarm)
     {
       printf("trying again\n");
+      activatedAlarm = FALSE;
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
     }
@@ -422,6 +428,7 @@ int readRR(int fd)
     res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
     if(activatedAlarm)
     {
+      activatedAlarm = FALSE;
       printf("trying again\n");
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
