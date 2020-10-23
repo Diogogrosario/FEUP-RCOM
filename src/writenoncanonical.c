@@ -13,7 +13,8 @@ struct termios oldtio, newtio;
 
 static int currentState = 0;
 static int currentPos = 4;
-unsigned char buf[506];
+unsigned char msg[MAX_SIZE*2+7];
+unsigned char buf[MAX_SIZE*2+7];
 static int currentIndex = -1;
 static int activatedAlarm = FALSE;
 
@@ -110,7 +111,7 @@ int sendInfo(char *info, int size, int fd)
 {
   currentPos = 4;
 
-  char sendMessage[507] = "";
+  char sendMessage[MAX_SIZE*2+7] = "";
   //WRITE
   sendMessage[0] = FLAG;
   sendMessage[1] = SENDER_A;
@@ -162,7 +163,7 @@ int sendInfo(char *info, int size, int fd)
   write(1, sendMessage, res);
   printf(" with a total size of %d bytes\n", res);
   alarm(protocol.timeout);
-  return 1;
+  return res;
 }
 
 int uaStateMachine(unsigned char *buf)
@@ -376,8 +377,7 @@ int readUA(int fd)
 {
   STOP=FALSE;
 
-  unsigned char recvBuf[255];
-  char msg[255];
+  unsigned char recvBuf[MAX_SIZE*2+7];
   while (STOP == FALSE)
   {
     /* loop for input */
@@ -417,8 +417,7 @@ int readUA(int fd)
 
 int readRR(int fd)
 {
-  unsigned char recvBuf[255];
-  char msg[255];
+  unsigned char recvBuf[MAX_SIZE*2+7];
   res = 0;
   STOP = FALSE;
   while (STOP == FALSE)

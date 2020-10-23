@@ -10,14 +10,14 @@ static int currentState = 0;
 struct linkLayer protocol;
 struct termios oldtio, newtio;
 
-char msg[255];
+char msg[MAX_SIZE*2+7];
 static int res;
 static int currentIndex = -1;
 
 int verifyBCC()
 {
   unsigned char bccControl = '\0';
-  for (int i = 4; i < currentIndex - 1; i++)
+  for (int i = 0; i < currentIndex - 1; i++)
   {
     bccControl ^= msg[i];
   }
@@ -30,18 +30,19 @@ int verifyBCC()
   return FALSE;
 }
 
-int infoStateMachine(char *buf, int fd)
+int infoStateMachine(unsigned char *buf, int fd)
 {
+  
+  static char C;
   static int numberOfRejs=0;
   switch (currentState)
   {
   case START:
     if (buf[0] == FLAG)
     {
+      C = '\0';
       currentIndex = 0;
       currentState = FLAG_RCV;
-      msg[currentIndex] = buf[0];
-      currentIndex++;
       return TRUE;
     }
     break;
@@ -49,8 +50,6 @@ int infoStateMachine(char *buf, int fd)
     if (buf[0] == SENDER_A)
     {
       currentState = A_RCV;
-      msg[currentIndex] = buf[0];
-      currentIndex++;
       return TRUE;
     }
     else if (buf[0] == FLAG)
@@ -63,20 +62,19 @@ int infoStateMachine(char *buf, int fd)
   case A_RCV:
     if (protocol.sequenceNumber == 1 && buf[0] == INFO_C_0)
     {
+      C = INFO_C_0;
       currentState = C_RCV;
-      msg[currentIndex] = buf[0];
-      currentIndex++;
       return TRUE;
     }
     else if (protocol.sequenceNumber == 0 && buf[0] == INFO_C_1)
     {
+      C = INFO_C_1;
       currentState = C_RCV;
-      msg[currentIndex] = buf[0];
-      currentIndex++;
       return TRUE;
     }
     else if ((protocol.sequenceNumber == 0 && buf[0] == INFO_C_0) || (protocol.sequenceNumber == 1 && buf[0] == INFO_C_1))
     {
+      C = '\0';
       currentState = START;
       printf("\nDuplicate\n");
       if (protocol.sequenceNumber == 1)
@@ -99,15 +97,11 @@ int infoStateMachine(char *buf, int fd)
     if (protocol.sequenceNumber == 1 && buf[0] == (SENDER_A ^ INFO_C_0))
     {
       currentState = BCC_OK;
-      msg[currentIndex] = buf[0];
-      currentIndex++;
       return TRUE;
     }
     else if (protocol.sequenceNumber == 0 && buf[0] == (SENDER_A ^ INFO_C_1))
     {
       currentState = BCC_OK;
-      msg[currentIndex] = buf[0];
-      currentIndex++;
       return TRUE;
     }
     else if (buf[0] == FLAG)
@@ -132,15 +126,13 @@ int infoStateMachine(char *buf, int fd)
     {
       if (verifyBCC())
       {
-        msg[currentIndex] = buf[0];
-        currentIndex++;
         res = 0;
         currentState = DONE;
-        if (protocol.sequenceNumber == 1 && msg[2] == INFO_C_1)
+        if (protocol.sequenceNumber == 1 && C == INFO_C_1)
         {
           msg[0] = '\0';
         }
-        else if (protocol.sequenceNumber == 0 && msg[2] == INFO_C_0)
+        else if (protocol.sequenceNumber == 0 && C == INFO_C_0)
         {
           msg[0] = '\0';
         }
@@ -297,10 +289,10 @@ int setStateMachine(char *buf)
   return FALSE;
 }
 
-int readInfo(int fd)
+int readInfo(int fd, char * appPacket)
 {
   STOP = FALSE;
-  char buf[255];
+  unsigned char buf[MAX_SIZE*2+7];
   while (STOP == FALSE)
   {
     /* loop for input */
@@ -322,15 +314,17 @@ int readInfo(int fd)
       msg[0] = '\0';
     }
   }
-  STOP = FALSE;
-  return 1;
+  for(int i = 0;i<currentIndex-1;i++){
+    appPacket[0] = msg[0];
+  }
+  return currentIndex-1;
 }
 
 int readSET(int fd)
 {
   STOP = FALSE;
 
-  char buf[255];
+  char buf[MAX_SIZE*2+7];
   while (STOP == FALSE)
   {
     /* loop for input */

@@ -37,7 +37,7 @@
 #define RR_C_1 0x85
 #define REJ_C_0 0x01
 #define REJ_C_1 0x81
-#define MAX_SIZE 255
+#define MAX_SIZE 250
 
 
 struct linkLayer
