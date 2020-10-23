@@ -102,8 +102,6 @@ int main(int argc, char **argv)
             char buf[MAX_SIZE-4];
 
             int bytesRead = fread(buf,1,MAX_SIZE-4,f1);
-            fseek(f1,ftell(f1),ftell(f1)+bytesRead);
-
             
             int size = buildDataPacket(buf,packet,bytesRead);
             
