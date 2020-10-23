@@ -24,7 +24,9 @@ int llopen(char * port, int status)
 }
 
 int llwrite(int fd, char * buffer,int length){
-    return sendInfo(buffer,length,fd);
+    int bytesRead = sendInfo(buffer,length,fd);
+    readRR(app.fileDescriptor);
+    return bytesRead;
 }
 
 int llread(int fd, char * appPacket){
@@ -46,11 +48,23 @@ int buildDataPacket(char*buf, char* packet, int length){
     return 4+i;
 }
 
+int buildControlPacket(char * filename,long filesize,char* pack, char controlField){
+    pack[0] = '\0';
+    pack[0] = controlField;
+    pack[1] = FILESIZE;
+    pack[2] = sizeof(long);
+    memcpy(pack + 3,&filesize,sizeof(long));
+    pack[3+sizeof(long)] = FILENAME;
+    pack[4+sizeof(long)] = strlen(filename);
+    memcpy(pack+5+sizeof(long),filename,strlen(filename));
+    return 5+sizeof(long)+strlen(filename);
+}
+
 int main(int argc, char **argv)
 {
-    if (argc < 2)
+    if (argc <3)
     {
-        printf("Usage : './application writer or ./application reader!");
+        printf("Usage : './application writer [path_to_file] or ./application reader [path_to_file]");
         exit(1);
     }
     if (!strcmp(argv[1], "writer"))
@@ -72,28 +86,35 @@ int main(int argc, char **argv)
 
     if (!strcmp(argv[1], "writer"))
     {
-        int charsWritten = -1;
-        /*
-        FILE *f1 = fopen("pinguim.gif","r");
+        char pack[MAX_SIZE];
+
+        FILE *f1 = fopen(argv[2],"r");
+        fseek(f1,0,SEEK_END);
+        long filesize = ftell(f1);
+
+        int packSize = buildControlPacket(argv[2],filesize,pack,CONTROL_START);
+        llwrite(app.fileDescriptor,pack,packSize);
+
         fseek(f1,0,SEEK_SET);
-        */
-        while(charsWritten != 0){
+        
+        while(getc(f1) != EOF){
             char packet[MAX_SIZE];
-            /*char buf[MAX_SIZE-4];
+            char buf[MAX_SIZE-4];
 
             int bytesRead = fread(buf,1,MAX_SIZE-4,f1);
             fseek(f1,ftell(f1),ftell(f1)+bytesRead);
-            */
-           char buf[] ="padoru";
-           int bytesRead = strlen("padoru");
-           int size = buildDataPacket(buf,packet,bytesRead);
+
             
-            charsWritten = llwrite(app.fileDescriptor,packet,size);
-            readRR(app.fileDescriptor);
+            int size = buildDataPacket(buf,packet,bytesRead);
+            
+            llwrite(app.fileDescriptor,packet,size);
         }
-       
+        packSize = buildControlPacket(argv[2],filesize,pack,CONTROL_END);
+        llwrite(app.fileDescriptor,pack,packSize);
 
         closeWriter(app.fileDescriptor);
+        
+
     }
     else if (!strcmp(argv[1], "reader"))
     {
