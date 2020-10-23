@@ -149,9 +149,12 @@ int infoStateMachine(unsigned char *buf, int fd)
       }
       else
       {
-        if (numberOfRejs >= 3)
+        if (numberOfRejs >= 1)
           exit(1);
         numberOfRejs++;
+        for(int i = 0;i< currentIndex;i++){
+          printf("hex:%X char:%c decimal:%d\n",msg[currentIndex],msg[currentIndex],msg[currentIndex]);
+        }
         printf("\nRejecting\n");
         
         if (protocol.sequenceNumber == 0)
