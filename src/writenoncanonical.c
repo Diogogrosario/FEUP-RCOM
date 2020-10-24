@@ -111,7 +111,7 @@ int sendInfo(char *info, int size, int fd)
 {
   currentPos = 4;
 
-  char sendMessage[MAX_SIZE*2+7] = "";
+  char sendMessage[size*2+7];
   //WRITE
   sendMessage[0] = FLAG;
   sendMessage[1] = SENDER_A;
@@ -377,7 +377,7 @@ int readUA(int fd)
 {
   STOP=FALSE;
 
-  unsigned char recvBuf[MAX_SIZE*2+7];
+  unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
     /* loop for input */
@@ -417,7 +417,7 @@ int readUA(int fd)
 
 int readRR(int fd)
 {
-  unsigned char recvBuf[MAX_SIZE*2+7];
+  unsigned char recvBuf[5];
   res = 0;
   STOP = FALSE;
   while (STOP == FALSE)

@@ -324,7 +324,7 @@ int readSET(int fd)
 {
   STOP = FALSE;
 
-  char buf[MAX_SIZE*2+7];
+  char buf[5];
   while (STOP == FALSE)
   {
     /* loop for input */

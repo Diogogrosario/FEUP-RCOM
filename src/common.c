@@ -2,7 +2,7 @@
 
 int sendSupervisionPacket(char addressField, char controlByte,struct linkLayer* protocol, int fd)
 {
-  unsigned char sendBuf[MAX_SIZE*2+7];
+  unsigned char sendBuf[5];
   sendBuf[0] = FLAG;
   sendBuf[1] = addressField;
   sendBuf[2] = controlByte;
