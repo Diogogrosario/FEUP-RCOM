@@ -10,6 +10,7 @@
 #define READ_C 0
 #define READ_NEXT_START 1
 #define READ_NEXT_END 2
+#define READ_DATA 3
 
 struct applicationLayer
 {

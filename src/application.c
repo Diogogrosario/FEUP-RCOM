@@ -7,6 +7,8 @@ struct applicationLayer app;
 int serialNumber = 0;
 char *fileName;
 int fileSize;
+char * writeToFile;
+int currentFileArrayIndex;
 
 int llopen(char *port, int status)
 {
@@ -71,6 +73,7 @@ int buildControlPacket(char *filename, long filesize, unsigned char *pack, char 
 int decodeAppPacket(unsigned char *appPacket, int bytesRead)
 {
     int state = READ_C;
+    static int nextPackSequenceNumber = 0;
     int bytesToSkip = 0;
     printf("totalBytesToRead:%d \n", bytesRead);
 
@@ -82,20 +85,18 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
             if (appPacket[0] == CONTROL_START)
             {
                 printf("started reading first control packet\n");
-                for (int i = 0; i < bytesRead; i++)
-                {
-                    printf("packet char %d: %c\n", appPacket[i], appPacket[i]);
-                }
                 state = READ_NEXT_START;
             }
             else if (appPacket[0] == CONTROL_END)
             {
-                printf("started reading last control packet\n");
-                for (int i = 0; i < bytesRead; i++)
-                {
-                    printf("packet char %d: %c\n", appPacket[i], appPacket[i]);
-                }
+                printf("started reading last control packet\n");          
                 state = READ_NEXT_END;
+            }
+            else if (appPacket[0] == DATA_C)
+            {
+                printf("started reading data packet\n");
+                bytesToSkip = 10000;
+                state = READ_DATA;
             }
             else
             {
@@ -127,6 +128,7 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
                     filesize[i] = appPacket[3 + bytesToSkip];
                 }
                 fileSize = atoi(filesize);
+                writeToFile = malloc(sizeof(char) * size);
                 bytesToSkip += (2 + size);
             }
             break;
@@ -161,7 +163,30 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
                 bytesToSkip += (2 + size);
             }
             break;
+        case READ_DATA:
+            if((int)appPacket[1]==nextPackSequenceNumber)
+            {
+                printf("Entrei\n");
+                int size = (int)appPacket[2] * 256;
+                size += (int)appPacket[3];
+                bytesToSkip += 3+size;
+                for(int i = 0; i < size; i++)
+                {
+                    writeToFile[i+currentFileArrayIndex] = appPacket[4+i];
+                }
+                currentFileArrayIndex+=size;
+                nextPackSequenceNumber = (nextPackSequenceNumber+1)%255;
+
+            }
+            else
+            {
+                printf("Merdou\n");
+                bytesToSkip=10000;
+            }
+            break;
         }
+        
+
     }
 
     return TRUE;
