@@ -265,7 +265,7 @@ int main(int argc, char **argv)
         }
         printf("filesize: %ld\n", fileSize);
         FILE *newFile;
-        newFile = fopen("test.txt", "wb");
+        newFile = fopen("test.gif", "wb");
         fwrite(writeToFile, sizeof(char), fileSize, newFile);
         fclose(newFile);
         closeReader(app.fileDescriptor);
