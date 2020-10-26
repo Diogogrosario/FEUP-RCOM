@@ -51,6 +51,7 @@ int buildDataPacket(char *buf, unsigned char *packet, int length)
     int i = 0;
     for (; i < length; i++)
     {
+        printf("BUF[%d] : %c\n", i, buf[i]);
         packet[4 + i] = buf[i];
     }
     serialNumber++;
@@ -68,7 +69,7 @@ int buildControlPacket(char *filename, long filesize, unsigned char *pack, char 
     pack[4 + sizeof(long)] = strlen(filename);
     memcpy(pack + 5 + sizeof(long), filename, strlen(filename));
     int ret = write(1, pack, 5 + sizeof(long) + strlen(filename));
-
+    
     return ret;
 }
 
@@ -234,7 +235,9 @@ int main(int argc, char **argv)
 
         fseek(f1, 0, SEEK_SET);
 
-        while (getc(f1) != EOF)
+        int sizeRemaining = filesize;
+
+        while (sizeRemaining > 0)
         {
             unsigned char packet[MAX_SIZE];
             char buf[MAX_SIZE - 4];
@@ -242,6 +245,8 @@ int main(int argc, char **argv)
             int bytesRead = fread(buf, 1, MAX_SIZE - 4, f1);
 
             int size = buildDataPacket(buf, packet, bytesRead);
+
+            sizeRemaining -= bytesRead;
 
             llwrite(app.fileDescriptor, packet, size);
         }
@@ -260,7 +265,7 @@ int main(int argc, char **argv)
         }
         printf("filesize: %ld\n", fileSize);
         FILE *newFile;
-        newFile = fopen("test.gif", "wb");
+        newFile = fopen("test.txt", "wb");
         fwrite(writeToFile, sizeof(char), fileSize, newFile);
         fclose(newFile);
         closeReader(app.fileDescriptor);

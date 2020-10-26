@@ -15,7 +15,7 @@ static int currentState = 0;
 static int currentPos = 4;
 unsigned char msg[MAX_SIZE*2+7];
 unsigned char buf[MAX_SIZE*2+7];
-static int currentIndex = -1;
+static int currentIndex = 0;
 static int activatedAlarm = FALSE;
 
 static int res;
@@ -189,7 +189,7 @@ int uaStateMachine(unsigned char *buf)
       return TRUE;
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
     break;
@@ -208,7 +208,7 @@ int uaStateMachine(unsigned char *buf)
     }
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
     break;
@@ -227,7 +227,7 @@ int uaStateMachine(unsigned char *buf)
     }
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
   case BCC_OK:
@@ -239,7 +239,7 @@ int uaStateMachine(unsigned char *buf)
     }
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
     break;
@@ -247,7 +247,7 @@ int uaStateMachine(unsigned char *buf)
   default:
     break;
   }
-  currentIndex = -1;
+  currentIndex = 0;
   return FALSE;
 }
 
@@ -274,7 +274,7 @@ int rrStateMachine(unsigned char *buf, int fd)
       return TRUE;
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
     break;
@@ -301,7 +301,7 @@ int rrStateMachine(unsigned char *buf, int fd)
       alarm(protocol.timeout);
       protocol.currentTry++;
       currentState = START;
-      currentIndex = -1;
+      currentIndex = 0;
       return FALSE;
     }
     else if (protocol.sequenceNumber == 1 && buf[0] == REJ_C_0)
@@ -313,7 +313,7 @@ int rrStateMachine(unsigned char *buf, int fd)
       alarm(protocol.timeout);
       protocol.currentTry++;
       currentState = START;
-      currentIndex = -1;
+      currentIndex = 0;
       return FALSE;
     }
     else if (buf[0] == FLAG)
@@ -324,7 +324,7 @@ int rrStateMachine(unsigned char *buf, int fd)
     }
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
     break;
@@ -349,7 +349,7 @@ int rrStateMachine(unsigned char *buf, int fd)
     }
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
   case BCC_OK:
@@ -361,7 +361,7 @@ int rrStateMachine(unsigned char *buf, int fd)
     }
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
     break;
@@ -369,7 +369,7 @@ int rrStateMachine(unsigned char *buf, int fd)
   default:
     break;
   }
-  currentIndex = -1;
+  currentIndex = 0;
   return FALSE;
 }
 
@@ -402,7 +402,7 @@ int readUA(int fd)
         write(1, msg, 6);
         printf(" with a total size of %d bytes\n", 6);
         //read(fd,recvBuf,1);
-        currentIndex = -1;
+        currentIndex = 0;
         currentState = START;
         STOP = TRUE;
       }
@@ -445,7 +445,7 @@ int readRR(int fd)
         write(1, msg, currentIndex + 1);
         printf(" with a total size of %d bytes\n", currentIndex + 1);
         updateSequenceNumber(&protocol);
-        currentIndex = -1;
+        currentIndex = 0;
         currentState = START;
         STOP = TRUE;
       }

@@ -12,7 +12,7 @@ struct termios oldtio, newtio;
 
 unsigned char msg[MAX_SIZE*2+7];
 static int res;
-static int currentIndex = -1;
+static int currentIndex = 0;
 
 int verifyBCC()
 {
@@ -189,6 +189,7 @@ int infoStateMachine(unsigned char *buf, int fd)
     }
     else
     {
+      printf("BUF[0] : %c\n", buf[0]);
       msg[currentIndex] = buf[0];
       currentIndex++;
       res = 0;
@@ -318,7 +319,7 @@ int readInfo(int fd, unsigned char * appPacket)
   }
   
   ret = currentIndex-1;
-  currentIndex = -1;
+  currentIndex = 0;
   return ret;
 }
 
@@ -342,7 +343,7 @@ int readSET(int fd)
         fflush(stdout);
         write(1, msg, currentIndex + 1);
         printf(" with a total size of %d bytes", currentIndex + 1);
-        currentIndex = -1;
+        currentIndex = 0;
         currentState = START;
         STOP = TRUE;
         msg[0] = '\0';
