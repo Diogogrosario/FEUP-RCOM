@@ -7,6 +7,9 @@
 #define CONTROL_END 0x03
 #define FILESIZE 0
 #define FILENAME 1
+#define READ_C 0
+#define READ_NEXT_START 1
+#define READ_NEXT_END 2
 
 struct applicationLayer
 {
@@ -16,6 +19,6 @@ struct applicationLayer
 
 int llopen(char * port, int status);
 
-int llwrite(int fd, char * buffer,int length);
+int llwrite(int fd, unsigned char * buffer,int length);
 
-int llread(int fd, char * buffer);
+int llread(int fd, unsigned char * buffer);

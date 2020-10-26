@@ -289,7 +289,7 @@ int setStateMachine(char *buf)
   return FALSE;
 }
 
-int readInfo(int fd, char * appPacket)
+int readInfo(int fd, unsigned char * appPacket)
 {
   STOP = FALSE;
   unsigned char buf[MAX_SIZE*2+7];
@@ -303,8 +303,6 @@ int readInfo(int fd, char * appPacket)
     {
       if (currentState == DONE)
       {
-        currentIndex = -1;
-
         currentState = START;
         STOP = TRUE;
       }
@@ -314,10 +312,13 @@ int readInfo(int fd, char * appPacket)
       msg[0] = '\0';
     }
   }
+  int ret = 0;
   for(int i = 0;i<currentIndex-1;i++){
     appPacket[0] = msg[0];
   }
-  return currentIndex-1;
+  ret = currentIndex-1;
+  currentIndex = -1;
+  return ret;
 }
 
 int readSET(int fd)

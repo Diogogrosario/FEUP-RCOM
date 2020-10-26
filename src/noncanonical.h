@@ -2,7 +2,7 @@
 
 int verifyBCC();
 
-int readInfo(int fd, char * appPacket);
+int readInfo(int fd, unsigned char * appPacket);
 
 int readSET();
 

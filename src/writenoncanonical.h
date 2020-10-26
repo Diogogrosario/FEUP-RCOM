@@ -1,6 +1,6 @@
 #pragma once
 
-int sendInfo(char *info, int size, int fd);
+int sendInfo(unsigned char *info, int size, int fd);
 
 int stuffChar(char info, unsigned char *buf);
 

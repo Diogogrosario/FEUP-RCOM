@@ -107,7 +107,7 @@ int stuffChar(char info, unsigned char *buf)
   }
 }
 
-int sendInfo(char *info, int size, int fd)
+int sendInfo(unsigned char *info, int size, int fd)
 {
   currentPos = 4;
 
