@@ -6,9 +6,10 @@
 struct applicationLayer app;
 int serialNumber = 0;
 char *fileName;
-int fileSize;
-char * writeToFile;
+long fileSize;
+char *writeToFile;
 int currentFileArrayIndex;
+int finished = FALSE;
 
 int llopen(char *port, int status)
 {
@@ -62,6 +63,7 @@ int buildControlPacket(char *filename, long filesize, unsigned char *pack, char 
     pack[1] = FILESIZE;
     pack[2] = sizeof(long);
     memcpy(pack + 3, &filesize, sizeof(long));
+    printf("filesize%ld",filesize);
     pack[3 + sizeof(long)] = FILENAME;
     pack[4 + sizeof(long)] = strlen(filename);
     memcpy(pack + 5 + sizeof(long), filename, strlen(filename));
@@ -89,13 +91,12 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
             }
             else if (appPacket[0] == CONTROL_END)
             {
-                printf("started reading last control packet\n");          
+                printf("started reading last control packet\n");
                 state = READ_NEXT_END;
             }
             else if (appPacket[0] == DATA_C)
             {
                 printf("started reading data packet\n");
-                bytesToSkip = 10000;
                 state = READ_DATA;
             }
             else
@@ -122,13 +123,13 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
             {
                 printf("started reading first control packet filesize\n");
                 int size = (int)appPacket[2 + bytesToSkip];
-                char filesize[size];
+                unsigned char filesize[size];
                 for (int i = 0; i < size; i++)
                 {
-                    filesize[i] = appPacket[3 + bytesToSkip];
+                    filesize[i] = appPacket[3 + bytesToSkip+i];
+                    fileSize |= (filesize[i] << 8*i);
                 }
-                fileSize = atoi(filesize);
-                writeToFile = malloc(sizeof(char) * size);
+                writeToFile = malloc(sizeof(char) * fileSize);
                 bytesToSkip += (2 + size);
             }
             break;
@@ -143,9 +144,14 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
                 }
                 if (!strcmp(filename, fileName))
                 {
+
                     printf("filename match with starting pack\n");
                 }
                 bytesToSkip += (2 + size);
+                if (bytesToSkip + 1 >= bytesRead)
+                {
+                    finished = TRUE;
+                }
             }
             else if (appPacket[1 + bytesToSkip] == FILESIZE)
             {
@@ -158,35 +164,35 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
                 int aux = atoi(filesize);
                 if (aux == fileSize)
                 {
+
                     printf("filesize match with starting pack\n");
                 }
                 bytesToSkip += (2 + size);
+                if (bytesToSkip + 1 >= bytesRead)
+                {
+                    finished = TRUE;
+                }
             }
             break;
         case READ_DATA:
-            if((int)appPacket[1]==nextPackSequenceNumber)
+            if ((int)appPacket[1] == nextPackSequenceNumber)
             {
-                printf("Entrei\n");
                 int size = (int)appPacket[2] * 256;
                 size += (int)appPacket[3];
-                bytesToSkip += 3+size;
-                for(int i = 0; i < size; i++)
+                bytesToSkip += 3 + size;
+                for (int i = 0; i < size; i++)
                 {
-                    writeToFile[i+currentFileArrayIndex] = appPacket[4+i];
+                    writeToFile[i + currentFileArrayIndex] = appPacket[4 + i];
                 }
-                currentFileArrayIndex+=size;
-                nextPackSequenceNumber = (nextPackSequenceNumber+1)%255;
-
+                currentFileArrayIndex += size;
+                nextPackSequenceNumber = (nextPackSequenceNumber + 1) % 255;
             }
             else
             {
-                printf("Merdou\n");
-                bytesToSkip=10000;
+                bytesToSkip = 10000;
             }
             break;
         }
-        
-
     }
 
     return TRUE;
@@ -246,13 +252,19 @@ int main(int argc, char **argv)
     }
     else if (!strcmp(argv[1], "reader"))
     {
-        while (1)
+        while (!finished)
         {
             unsigned char appPacket[MAX_SIZE];
             int bytesRead = llread(app.fileDescriptor, appPacket);
             decodeAppPacket(appPacket, bytesRead);
         }
-
+        printf("filesize: %ld\n", fileSize);
+        FILE *newFile;
+        newFile = fopen("test.gif", "wb");
+        fwrite(writeToFile, sizeof(char), fileSize, newFile);
+        fclose(newFile);
         closeReader(app.fileDescriptor);
+        free(writeToFile);
+        free(fileName);
     }
 }

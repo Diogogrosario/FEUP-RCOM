@@ -277,7 +277,7 @@ int setStateMachine(char *buf)
     }
     else
     {
-      currentIndex = -1;
+      currentIndex = 0;
       currentState = START;
     }
     break;
