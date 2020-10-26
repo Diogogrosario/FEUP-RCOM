@@ -314,8 +314,9 @@ int readInfo(int fd, unsigned char * appPacket)
   }
   int ret = 0;
   for(int i = 0;i<currentIndex-1;i++){
-    appPacket[0] = msg[0];
+    appPacket[i] = msg[i];
   }
+  
   ret = currentIndex-1;
   currentIndex = -1;
   return ret;
