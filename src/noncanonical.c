@@ -34,7 +34,6 @@ int infoStateMachine(unsigned char *buf, int fd)
 {
   
   static char C;
-  static int numberOfRejs=0;
   switch (currentState)
   {
   case START:
@@ -111,9 +110,6 @@ int infoStateMachine(unsigned char *buf, int fd)
     }
     else
     {
-      if(numberOfRejs>=3)
-        exit(1);
-      numberOfRejs++;
       if (protocol.sequenceNumber == 0)
         sendSupervisionPacket(SENDER_A, REJ_C_0, &protocol, fd);
       else if (protocol.sequenceNumber == 1)
@@ -149,9 +145,6 @@ int infoStateMachine(unsigned char *buf, int fd)
       }
       else
       {
-        if (numberOfRejs >= 3)
-          exit(1);
-        numberOfRejs++;
         printf("\nRejecting\n");
         
         if (protocol.sequenceNumber == 0)

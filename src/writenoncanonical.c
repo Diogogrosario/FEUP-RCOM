@@ -294,24 +294,21 @@ int rrStateMachine(unsigned char *buf, int fd)
     }
     else if (protocol.sequenceNumber == 0 && buf[0] == REJ_C_1)
     {
-      if(protocol.currentTry>=protocol.numTransmissions)
-        exit(1);
+      protocol.currentTry=0;
       printf("\nResending");
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
-      protocol.currentTry++;
       currentState = START;
       currentIndex = 0;
       return FALSE;
     }
     else if (protocol.sequenceNumber == 1 && buf[0] == REJ_C_0)
     {
-      if(protocol.currentTry>=protocol.numTransmissions)
-        exit(1);
+      
       printf("\nResending");
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
-      protocol.currentTry++;
+      protocol.currentTry=0;
       currentState = START;
       currentIndex = 0;
       return FALSE;
