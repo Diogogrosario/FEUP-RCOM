@@ -51,7 +51,6 @@ int buildDataPacket(char *buf, unsigned char *packet, int length)
     int i = 0;
     for (; i < length; i++)
     {
-        printf("BUF[%d] : %c\n", i, buf[i]);
         packet[4 + i] = buf[i];
     }
     serialNumber++;
@@ -64,7 +63,6 @@ int buildControlPacket(char *filename, long filesize, unsigned char *pack, char 
     pack[1] = FILESIZE;
     pack[2] = sizeof(long);
     memcpy(pack + 3, &filesize, sizeof(long));
-    printf("filesize%ld",filesize);
     pack[3 + sizeof(long)] = FILENAME;
     pack[4 + sizeof(long)] = strlen(filename);
     memcpy(pack + 5 + sizeof(long), filename, strlen(filename));
@@ -78,7 +76,6 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
     int state = READ_C;
     static int nextPackSequenceNumber = 0;
     int bytesToSkip = 0;
-    printf("totalBytesToRead:%d \n", bytesRead);
 
     while (1 + bytesToSkip < bytesRead)
     {
@@ -165,7 +162,6 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
                 int aux = atoi(filesize);
                 if (aux == fileSize)
                 {
-
                     printf("filesize match with starting pack\n");
                 }
                 bytesToSkip += (2 + size);
@@ -263,9 +259,8 @@ int main(int argc, char **argv)
             int bytesRead = llread(app.fileDescriptor, appPacket);
             decodeAppPacket(appPacket, bytesRead);
         }
-        printf("filesize: %ld\n", fileSize);
         FILE *newFile;
-        newFile = fopen("test.txt", "wb");
+        newFile = fopen("test.gif", "wb");
         fwrite(writeToFile, sizeof(char), fileSize, newFile);
         fclose(newFile);
         closeReader(app.fileDescriptor);
