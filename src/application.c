@@ -278,7 +278,7 @@ int main(int argc, char **argv)
             decodeAppPacket(appPacket, bytesRead);
         }
         FILE *newFile;
-        char path[256] = "./out/";
+        char path[256] = "../";
         strcat(path, fileName);
         newFile = fopen(path, "wb");
         fwrite(writeToFile, sizeof(char), fileSize, newFile);
