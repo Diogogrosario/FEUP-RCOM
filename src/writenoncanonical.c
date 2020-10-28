@@ -124,11 +124,9 @@ int writerReadDISC(int status, int fd)
   unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    res += read(fd, recvBuf, 1);
     if(activatedAlarm)
     {
-      printf("trying again\n");
       activatedAlarm = FALSE;
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
@@ -141,11 +139,6 @@ int writerReadDISC(int status, int fd)
       {
         alarm(0);
         protocol.currentTry = 0;
-        printf("received DISC message ");
-        fflush(stdout);
-        write(1, msg, 6);
-        printf(" with a total size of %d bytes\n", 6);
-        //read(fd,recvBuf,1);
         currentIndex = 0;
         currentState = START;
         STOP = TRUE;
@@ -177,7 +170,7 @@ int openWriter(char * port)
     }
 
     bzero(&newtio, sizeof(newtio));
-    newtio.c_cflag = protocol.baudRate | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0;
 
@@ -199,6 +192,7 @@ int openWriter(char * port)
         perror("tcsetattr");
         exit(-1);
     }
+    printf("Connection established at: %s\n",port);
     return fd;
 }
 
@@ -238,7 +232,6 @@ int sendInfo(unsigned char *info, int size, int fd)
   currentPos = 4;
 
   char sendMessage[size*2+7];
-  //WRITE
   sendMessage[0] = FLAG;
   sendMessage[1] = SENDER_A;
   if (protocol.sequenceNumber == 1)
@@ -283,11 +276,8 @@ int sendInfo(unsigned char *info, int size, int fd)
   res = write(fd, sendMessage, currentPos + offset + 1);
   protocol.frame[0] = '\0';
   memcpy(protocol.frame, sendMessage, currentPos + offset + 1);
-  // protocol.frame = sendMessage;
   protocol.frameSize = currentPos + offset + 1;
 
-  write(1, sendMessage, res);
-  printf(" with a total size of %d bytes\n", res);
   alarm(protocol.timeout);
   return res;
 }
@@ -384,6 +374,7 @@ int transmitterDisconnect(int fd)
   protocol.currentTry = 0;
   writerReadDISC(RECEIVER_A,fd);
   sendSupervisionPacket(RECEIVER_A,UA_C, &protocol,fd);
+  printf("Connection closed\n");
   return 1;
 }
 
@@ -431,7 +422,6 @@ int rrStateMachine(unsigned char *buf, int fd)
     else if (protocol.sequenceNumber == 0 && buf[0] == REJ_C_1)
     {
       protocol.currentTry=0;
-      printf("\nResending");
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
       currentState = START;
@@ -441,7 +431,6 @@ int rrStateMachine(unsigned char *buf, int fd)
     else if (protocol.sequenceNumber == 1 && buf[0] == REJ_C_0)
     {
       
-      printf("\nResending");
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
       protocol.currentTry=0;
@@ -513,11 +502,9 @@ int writerReadUA(int fd)
   unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    res += read(fd, recvBuf, 1); 
     if(activatedAlarm)
     {
-      printf("trying again\n");
       activatedAlarm = FALSE;
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
@@ -530,11 +517,6 @@ int writerReadUA(int fd)
       {
         alarm(0);
         protocol.currentTry = 0;
-        printf("received UA message ");
-        fflush(stdout);
-        write(1, msg, 6);
-        printf(" with a total size of %d bytes\n", 6);
-        //read(fd,recvBuf,1);
         currentIndex = 0;
         currentState = START;
         STOP = TRUE;
@@ -555,13 +537,10 @@ int readRR(int fd)
   STOP = FALSE;
   while (STOP == FALSE)
   {
-    //printf("stuck in read\n");
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    res += read(fd, recvBuf, 1); 
     if(activatedAlarm)
     {
       activatedAlarm = FALSE;
-      printf("trying again\n");
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
     }
@@ -573,10 +552,6 @@ int readRR(int fd)
       {
         alarm(0);
         protocol.currentTry = 0;
-        printf("received RR message ");
-        fflush(stdout);
-        write(1, msg, currentIndex + 1);
-        printf(" with a total size of %d bytes\n", currentIndex + 1);
         updateSequenceNumber(&protocol);
         currentIndex = 0;
         currentState = START;
@@ -607,38 +582,3 @@ int setupWriterConnection(int fd)
 
   return 0;
 }
-
-// int main(int argc, char **argv)
-// { 
-
-
-//   /*
-//     Open serial port device for reading and writing and not as controlling tty
-//     because we don't want to get killed if linenoise sends CTRL-C.
-//   */
-  
-
-//   //WRITE
-  
-
-//   /* 
-//     Criação de dados.
-//   */
-
-//   char data[255];
-//   strcpy(data, "Padoru");
-//   sendInfo(data, strlen(data));
-//   readRR();
-//   strcpy(data, "Padoru");
-//   sendInfo(data, strlen(data));
-//   readRR();
-
-//   sendSupervisionPacket(SENDER_A, DISC_C, &protocol, fd);
-//   //writerReadDISC();
-//   sendSupervisionPacket(RECEIVER_A, UA_C, &protocol, fd);
-
-  
-
-//   close(fd);
-//   return 0;
-// }

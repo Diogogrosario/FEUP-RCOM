@@ -11,20 +11,21 @@ struct linkLayer protocol;
 struct termios oldtio, newtio;
 int activatedAlarm = FALSE;
 
-unsigned char msg[MAX_SIZE*2+7];
+unsigned char msg[MAX_SIZE * 2 + 7];
 static int res;
 static int currentIndex = 0;
 
 static void atende(int signo) // atende alarme
 {
-  switch (signo){
-    case SIGALRM:
-      
-      if(protocol.currentTry>=protocol.numTransmissions)
-        exit(1);
-      protocol.currentTry++;
-      activatedAlarm = TRUE;
-      break;
+  switch (signo)
+  {
+  case SIGALRM:
+
+    if (protocol.currentTry >= protocol.numTransmissions)
+      exit(1);
+    protocol.currentTry++;
+    activatedAlarm = TRUE;
+    break;
   }
 }
 
@@ -122,7 +123,6 @@ int verifyBCC()
   }
   if (msg[currentIndex - 1] == bccControl)
   {
-    printf("\nBCC OK accepting data\n");
     return TRUE;
   }
 
@@ -131,7 +131,7 @@ int verifyBCC()
 
 int infoStateMachine(unsigned char *buf, int fd)
 {
-  
+
   static char C;
   switch (currentState)
   {
@@ -174,7 +174,6 @@ int infoStateMachine(unsigned char *buf, int fd)
     {
       C = '\0';
       currentState = START;
-      printf("\nDuplicate\n");
       if (protocol.sequenceNumber == 1)
         sendSupervisionPacket(SENDER_A, RR_C_0, &protocol, fd);
       else if (protocol.sequenceNumber == 0)
@@ -233,7 +232,6 @@ int infoStateMachine(unsigned char *buf, int fd)
         }
         else
         {
-          write(1, msg, currentIndex);
           if (protocol.sequenceNumber == 0)
             sendSupervisionPacket(SENDER_A, RR_C_0, &protocol, fd);
           else if (protocol.sequenceNumber == 1)
@@ -244,8 +242,6 @@ int infoStateMachine(unsigned char *buf, int fd)
       }
       else
       {
-        printf("\nRejecting\n");
-        
         if (protocol.sequenceNumber == 0)
           sendSupervisionPacket(SENDER_A, REJ_C_0, &protocol, fd);
         else if (protocol.sequenceNumber == 1)
@@ -297,17 +293,15 @@ int infoStateMachine(unsigned char *buf, int fd)
 
 int receiverReadDISC(int status, int fd)
 {
-  STOP=FALSE;
+  STOP = FALSE;
   unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
-    if(activatedAlarm)
+    res += read(fd, recvBuf, 1);
+    if (activatedAlarm)
     {
-      printf("trying again\n");
       activatedAlarm = FALSE;
-      write(fd,protocol.frame,protocol.frameSize);
+      write(fd, protocol.frame, protocol.frameSize);
       alarm(protocol.timeout);
     }
     if (receiverDiscStateMachine(status, recvBuf))
@@ -318,11 +312,6 @@ int receiverReadDISC(int status, int fd)
       {
         alarm(0);
         protocol.currentTry = 0;
-        printf("received DISC message ");
-        fflush(stdout);
-        write(1, msg, 6);
-        printf(" with a total size of %d bytes\n", 6);
-        //read(fd,recvBuf,1);
         currentIndex = 0;
         currentState = START;
         STOP = TRUE;
@@ -336,7 +325,7 @@ int receiverReadDISC(int status, int fd)
   return 0;
 }
 
-int receiverUaStateMachine(int status,unsigned char *buf)
+int receiverUaStateMachine(int status, unsigned char *buf)
 {
   switch (currentState)
   {
@@ -423,21 +412,19 @@ int receiverUaStateMachine(int status,unsigned char *buf)
 
 int receiverReadUA(int status, int fd)
 {
-  STOP=FALSE;
+  STOP = FALSE;
 
   unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
-    /* loop for input */
-    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
-    if(activatedAlarm)
+    res += read(fd, recvBuf, 1);
+    if (activatedAlarm)
     {
-      printf("trying again\n");
       activatedAlarm = FALSE;
-      write(fd,protocol.frame,protocol.frameSize);
-      alarm(protocol.timeout); 
+      write(fd, protocol.frame, protocol.frameSize);
+      alarm(protocol.timeout);
     }
-    if (receiverUaStateMachine(status,recvBuf))
+    if (receiverUaStateMachine(status, recvBuf))
     {
       msg[currentIndex] = recvBuf[0];
       res = 0;
@@ -445,11 +432,6 @@ int receiverReadUA(int status, int fd)
       {
         alarm(0);
         protocol.currentTry = 0;
-        printf("received UA message ");
-        fflush(stdout);
-        write(1, msg, 6);
-        printf(" with a total size of %d bytes\n", 6);
-        //read(fd,recvBuf,1);
         currentIndex = 0;
         currentState = START;
         STOP = TRUE;
@@ -470,7 +452,7 @@ int receiverDisconnect(int fd)
   alarm(protocol.timeout);
   protocol.currentTry = 0;
   receiverReadUA(RECEIVER_A, fd);
-
+  printf("Connection closed\n");
   return 1;
 }
 
@@ -560,15 +542,14 @@ int setStateMachine(char *buf)
   return FALSE;
 }
 
-int readInfo(int fd, unsigned char * appPacket)
+int readInfo(int fd, unsigned char *appPacket)
 {
   STOP = FALSE;
-  unsigned char buf[MAX_SIZE*2+7];
+  unsigned char buf[MAX_SIZE * 2 + 7];
   while (STOP == FALSE)
   {
-    /* loop for input */
     buf[0] = '\0';
-    res += read(fd, buf, 1); /* returns after 5 chars have been input */
+    res += read(fd, buf, 1);
 
     if (infoStateMachine(buf, fd))
     {
@@ -584,11 +565,12 @@ int readInfo(int fd, unsigned char * appPacket)
     }
   }
   int ret = 0;
-  for(int i = 0;i<currentIndex-1;i++){
+  for (int i = 0; i < currentIndex - 1; i++)
+  {
     appPacket[i] = msg[i];
   }
-  
-  ret = currentIndex-1;
+
+  ret = currentIndex - 1;
   currentIndex = 0;
   return ret;
 }
@@ -600,8 +582,7 @@ int readSET(int fd)
   char buf[5];
   while (STOP == FALSE)
   {
-    /* loop for input */
-    res += read(fd, buf, 1); /* returns after 5 chars have been input */
+    res += read(fd, buf, 1);
 
     if (setStateMachine(buf))
     {
@@ -609,10 +590,6 @@ int readSET(int fd)
       res = 0;
       if (currentState == DONE)
       {
-        printf("received SET message ");
-        fflush(stdout);
-        write(1, msg, currentIndex + 1);
-        printf(" with a total size of %d bytes", currentIndex + 1);
         currentIndex = 0;
         currentState = START;
         STOP = TRUE;
@@ -651,7 +628,7 @@ int openReader(char *port)
   }
 
   bzero(&newtio, sizeof(newtio));
-  newtio.c_cflag = protocol.baudRate | CS8 | CLOCAL | CREAD;
+  newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
   newtio.c_iflag = IGNPAR;
   newtio.c_oflag = 0;
 
@@ -673,41 +650,19 @@ int openReader(char *port)
     perror("tcsetattr");
     exit(-1);
   }
-
+  printf("Connection established at: %s\n", port);
   return fd;
 }
 
 void setupReaderConnection(int fd)
 {
-  //RECEIVE
   readSET(fd);
 
-  //ALARM
   struct sigaction psa;
   psa.sa_handler = atende;
   sigemptyset(&psa.sa_mask);
-  psa.sa_flags=0;
+  psa.sa_flags = 0;
   sigaction(SIGALRM, &psa, NULL);
 
-  //WRITE BACK
   sendSupervisionPacket(SENDER_A, UA_C, &protocol, fd);
 }
-
-// int main(int argc, char **argv)
-// {
-//   STOP = FALSE;
-
-//   /*
-//     ler os dados
-//   */
-//   while (1)
-//   {
-//     readInfo();
-//   }
-
-//   //receiverReadDISC();
-//   sendSupervisionPacket(RECEIVER_A, DISC_C, &protocol, fd);
-//   //receiverReadUA();
-
-//   return 0;
-// }

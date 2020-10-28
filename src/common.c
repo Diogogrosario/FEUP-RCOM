@@ -9,15 +9,10 @@ int sendSupervisionPacket(char addressField, char controlByte,struct linkLayer* 
   sendBuf[3] = addressField ^ controlByte;
   sendBuf[4] = FLAG;
 
-  int res = write(fd, sendBuf, 5);
+  write(fd, sendBuf, 5);
   protocol->frame[0] = '\0';
   memcpy(protocol->frame, sendBuf, 5);
   protocol->frameSize = 5;
-
-  printf("\nsending packet: ");
-  fflush(stdout);
-  write(1, sendBuf, res);
-  printf(" with a total size of %d bytes\n", res);
   return 0;
 }
 

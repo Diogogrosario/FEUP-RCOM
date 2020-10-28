@@ -25,7 +25,6 @@ int llopen(char *port, int status)
         fd = openReader(port);
         setupReaderConnection(fd);
     }
-
     return fd;
 }
 
@@ -66,9 +65,9 @@ int buildControlPacket(char *filename, long filesize, unsigned char *pack, char 
     pack[3 + sizeof(long)] = FILENAME;
     pack[4 + sizeof(long)] = strlen(filename);
     memcpy(pack + 5 + sizeof(long), filename, strlen(filename));
-    int ret = write(1, pack, 5 + sizeof(long) + strlen(filename));
+    int sizeWritten = 5 + sizeof(long) + strlen(filename);
 
-    return ret;
+    return sizeWritten;
 }
 
 int decodeAppPacket(unsigned char *appPacket, int bytesRead)
@@ -76,6 +75,8 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
     int state = READ_C;
     static int nextPackSequenceNumber = 0;
     int bytesToSkip = 0;
+    int filenameOK = FALSE;
+    int filesizeOK = FALSE;
 
     while (1 + bytesToSkip < bytesRead)
     {
@@ -84,17 +85,14 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
         case READ_C:
             if (appPacket[0] == CONTROL_START)
             {
-                printf("started reading first control packet\n");
                 state = READ_NEXT_START;
             }
             else if (appPacket[0] == CONTROL_END)
             {
-                printf("started reading last control packet\n");
                 state = READ_NEXT_END;
             }
             else if (appPacket[0] == DATA_C)
             {
-                printf("started reading data packet\n");
                 state = READ_DATA;
             }
             else
@@ -106,7 +104,6 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
             if (appPacket[1 + bytesToSkip] == FILENAME)
             {
 
-                printf("started reading first control packet filename\n");
                 int size = (int)appPacket[2 + bytesToSkip];
                 fileName = malloc(sizeof(char) * size);
                 for (int j = 0; j < size; j++)
@@ -117,9 +114,8 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
             }
             else if (appPacket[1 + bytesToSkip] == FILESIZE)
             {
-                printf("started reading first control packet filesize\n");
                 int size = (int)appPacket[2 + bytesToSkip];
-                unsigned char filesize[size];
+                unsigned char *filesize = malloc(sizeof(char) * size);
                 for (int i = 0; i < size; i++)
                 {
                     filesize[i] = appPacket[3 + bytesToSkip + i];
@@ -133,16 +129,16 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
             if (appPacket[1 + bytesToSkip] == FILENAME)
             {
                 int size = (int)appPacket[2 + bytesToSkip];
-                char filename[size];
+                char *filename = malloc(sizeof(char) * size);
                 for (int i = 0; i < size; i++)
                 {
                     filename[i] = appPacket[3 + bytesToSkip + i];
                 }
                 if (!strcmp(filename, fileName))
                 {
-                    printf("fileName is: %s", fileName);
-                    printf("filename match with starting pack\n");
+                    filenameOK = TRUE;
                 }
+                free(filename);
                 bytesToSkip += (2 + size);
                 if (bytesToSkip + 1 >= bytesRead)
                 {
@@ -152,19 +148,21 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
             else if (appPacket[1 + bytesToSkip] == FILESIZE)
             {
                 int size = (int)appPacket[2 + bytesToSkip];
-                char filesize[size];
+                unsigned char *filesize = malloc(sizeof(char) * size);
+                long aux = 0;
                 for (int i = 0; i < size; i++)
                 {
                     filesize[i] = appPacket[3 + bytesToSkip + i];
+                    aux |= (filesize[i] << 8 * i);
                 }
-                int aux = atoi(filesize);
                 if (aux == fileSize)
                 {
-                    printf("filesize match with starting pack\n");
+                    filesizeOK = TRUE;
                 }
                 bytesToSkip += (2 + size);
                 if (bytesToSkip + 1 >= bytesRead)
                 {
+
                     finished = TRUE;
                 }
             }
@@ -188,6 +186,11 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
             }
             break;
         }
+    }
+
+    if (filesizeOK && filenameOK)
+    {
+        printf("Control Packets matched, file received\n");
     }
 
     return TRUE;
@@ -244,6 +247,7 @@ int main(int argc, char **argv)
         long filesize = ftell(f1);
 
         int packSize = buildControlPacket(argv[2], filesize, pack, CONTROL_START);
+        printf("Started sending file\n");
         llwrite(app.fileDescriptor, pack, packSize);
 
         fseek(f1, 0, SEEK_SET);
@@ -265,12 +269,14 @@ int main(int argc, char **argv)
         }
         packSize = buildControlPacket(argv[2], filesize, pack, CONTROL_END);
         llwrite(app.fileDescriptor, pack, packSize);
+        printf("Finished sending file\n");
 
         llclose(app.fileDescriptor);
         closeWriter(app.fileDescriptor);
     }
     else if (!strcmp(argv[1], "reader"))
     {
+        printf("Started receiving file\n");
         while (!finished)
         {
             unsigned char appPacket[MAX_SIZE];
@@ -283,6 +289,7 @@ int main(int argc, char **argv)
         newFile = fopen(path, "wb");
         fwrite(writeToFile, sizeof(char), fileSize, newFile);
         fclose(newFile);
+        printf("File saved in %s\n",path);
         llclose(app.fileDescriptor);
         closeReader(app.fileDescriptor);
         free(writeToFile);
