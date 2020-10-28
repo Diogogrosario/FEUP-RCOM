@@ -281,7 +281,6 @@ int infoStateMachine(unsigned char *buf, int fd)
     }
     else
     {
-      printf("BUF[0] : %c\n", buf[0]);
       msg[currentIndex] = buf[0];
       currentIndex++;
       res = 0;
@@ -466,10 +465,11 @@ int receiverReadUA(int status, int fd)
 
 int receiverDisconnect(int fd)
 {
-  receiverReadDISC(SENDER_A,fd);
-  sendSupervisionPacket(RECEIVER_A,DISC_C,&protocol,fd);
+  receiverReadDISC(SENDER_A, fd);
+  sendSupervisionPacket(RECEIVER_A, DISC_C, &protocol, fd);
   alarm(3);
-  receiverReadUA(RECEIVER_A,fd);
+  receiverReadUA(RECEIVER_A, fd);
+
   return 1;
 }
 

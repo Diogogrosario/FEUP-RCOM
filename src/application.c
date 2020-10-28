@@ -262,8 +262,8 @@ int main(int argc, char **argv)
         packSize = buildControlPacket(argv[2], filesize, pack, CONTROL_END);
         llwrite(app.fileDescriptor, pack, packSize);
 
-        closeWriter(app.fileDescriptor);
         llclose(app.fileDescriptor);
+        closeWriter(app.fileDescriptor);
     }
     else if (!strcmp(argv[1], "reader"))
     {
@@ -277,9 +277,9 @@ int main(int argc, char **argv)
         newFile = fopen("test.gif", "wb");
         fwrite(writeToFile, sizeof(char), fileSize, newFile);
         fclose(newFile);
+        llclose(app.fileDescriptor);
         closeReader(app.fileDescriptor);
         free(writeToFile);
         free(fileName);
-        llclose(app.fileDescriptor);
     }
 }
