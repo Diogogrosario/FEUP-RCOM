@@ -380,15 +380,10 @@ int writerUaStateMachine(unsigned char *buf)
 int transmitterDisconnect(int fd)
 {
   sendSupervisionPacket(SENDER_A, DISC_C, &protocol,fd);
-  printf("\n\n\n\n1\n\n\n\n\n");
-  fflush(stdout);//nao devia ser disto mas
+  alarm(protocol.timeout);
+  protocol.currentTry = 0;
   writerReadDISC(RECEIVER_A,fd);
-  printf("\n\n\n\n2\n\n\n\n\n");
-  fflush(stdout);
   sendSupervisionPacket(RECEIVER_A,UA_C, &protocol,fd);
-  printf("\n\n\n\n3\n\n\n\n\n");
-  fflush(stdout);
-
   return 1;
 }
 

@@ -67,7 +67,7 @@ int buildControlPacket(char *filename, long filesize, unsigned char *pack, char 
     pack[4 + sizeof(long)] = strlen(filename);
     memcpy(pack + 5 + sizeof(long), filename, strlen(filename));
     int ret = write(1, pack, 5 + sizeof(long) + strlen(filename));
-    
+
     return ret;
 }
 
@@ -108,13 +108,11 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
 
                 printf("started reading first control packet filename\n");
                 int size = (int)appPacket[2 + bytesToSkip];
-                char filename[size];
+                fileName = malloc(sizeof(char) * size);
                 for (int j = 0; j < size; j++)
                 {
-                    filename[j] = appPacket[3 + bytesToSkip];
+                    fileName[j] = appPacket[3 + bytesToSkip + j];
                 }
-                fileName = malloc(sizeof(char) * size);
-                strcpy(fileName, filename);
                 bytesToSkip += (2 + size);
             }
             else if (appPacket[1 + bytesToSkip] == FILESIZE)
@@ -124,8 +122,8 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
                 unsigned char filesize[size];
                 for (int i = 0; i < size; i++)
                 {
-                    filesize[i] = appPacket[3 + bytesToSkip+i];
-                    fileSize |= (filesize[i] << 8*i);
+                    filesize[i] = appPacket[3 + bytesToSkip + i];
+                    fileSize |= (filesize[i] << 8 * i);
                 }
                 writeToFile = malloc(sizeof(char) * fileSize);
                 bytesToSkip += (2 + size);
@@ -138,11 +136,11 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
                 char filename[size];
                 for (int i = 0; i < size; i++)
                 {
-                    filename[i] = appPacket[3 + bytesToSkip];
+                    filename[i] = appPacket[3 + bytesToSkip + i];
                 }
                 if (!strcmp(filename, fileName))
                 {
-
+                    printf("fileName is: %s", fileName);
                     printf("filename match with starting pack\n");
                 }
                 bytesToSkip += (2 + size);
@@ -157,7 +155,7 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
                 char filesize[size];
                 for (int i = 0; i < size; i++)
                 {
-                    filesize[i] = appPacket[3 + bytesToSkip];
+                    filesize[i] = appPacket[3 + bytesToSkip + i];
                 }
                 int aux = atoi(filesize);
                 if (aux == fileSize)
@@ -197,11 +195,11 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
 
 int llclose(int fd)
 {
-    if(app.status == TRANSMITTER)   
+    if (app.status == TRANSMITTER)
     {
         return transmitterDisconnect(fd);
     }
-    if(app.status == RECEIVER)   
+    if (app.status == RECEIVER)
     {
         return receiverDisconnect(fd);
     }
@@ -210,24 +208,30 @@ int llclose(int fd)
 
 int main(int argc, char **argv)
 {
-    if (argc < 3)
-    {
-        printf("Usage : './application writer [path_to_file] or ./application reader [path_to_file]");
-        exit(1);
-    }
+
     if (!strcmp(argv[1], "writer"))
     {
+        if (argc < 3)
+        {
+            printf("Usage : ./application writer [path_to_file]");
+            exit(1);
+        }
         app.status = TRANSMITTER;
         app.fileDescriptor = llopen("/dev/ttyS10", TRANSMITTER);
     }
     else if (!strcmp(argv[1], "reader"))
     {
+        if (argc < 2)
+        {
+            printf("Usage : ./application reader");
+            exit(1);
+        }
         app.status = RECEIVER;
         app.fileDescriptor = llopen("/dev/ttyS11", RECEIVER);
     }
     else
     {
-        printf("Usage : './application writer or ./application reader!");
+        printf("Usage : ./application writer [path_to_file] or./application reader");
         exit(1);
     }
 
@@ -274,7 +278,9 @@ int main(int argc, char **argv)
             decodeAppPacket(appPacket, bytesRead);
         }
         FILE *newFile;
-        newFile = fopen("test.gif", "wb");
+        char path[256] = "./out/";
+        strcat(path, fileName);
+        newFile = fopen(path, "wb");
         fwrite(writeToFile, sizeof(char), fileSize, newFile);
         fclose(newFile);
         llclose(app.fileDescriptor);

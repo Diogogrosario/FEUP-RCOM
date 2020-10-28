@@ -467,7 +467,8 @@ int receiverDisconnect(int fd)
 {
   receiverReadDISC(SENDER_A, fd);
   sendSupervisionPacket(RECEIVER_A, DISC_C, &protocol, fd);
-  alarm(3);
+  alarm(protocol.timeout);
+  protocol.currentTry = 0;
   receiverReadUA(RECEIVER_A, fd);
 
   return 1;
