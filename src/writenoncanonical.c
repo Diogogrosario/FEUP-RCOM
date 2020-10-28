@@ -33,91 +33,6 @@ static void atende(int signo) // atende alarme
   }
 }
 
-int writerDiscStateMachine(int status, unsigned char *buf)
-{
-  switch (currentState)
-  {
-  case START:
-    if (buf[0] == FLAG)
-    {
-      currentState = FLAG_RCV;
-      currentIndex++;
-      return TRUE;
-    }
-    break;
-  case FLAG_RCV:
-    if (buf[0] == status)
-    {
-      currentState = A_RCV;
-      currentIndex++;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-      return TRUE;
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-  case A_RCV:
-    if (buf[0] == DISC_C)
-    {
-      currentIndex++;
-      currentState = C_RCV;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-    {
-      currentIndex = 0;
-      currentState = FLAG_RCV;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-  case C_RCV:
-    if (buf[0] == (DISC_C ^ status))
-    {
-      currentIndex++;
-      currentState = BCC_OK;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-    {
-      currentIndex = 0;
-      currentState = FLAG_RCV;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-  case BCC_OK:
-    if (buf[0] == FLAG)
-    {
-      currentIndex++;
-      currentState = DONE;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-
-  default:
-    break;
-  }
-  currentIndex = 0;
-  return FALSE;
-}
-
 int writerReadDISC(int status, int fd)
 {
   STOP=FALSE;
@@ -133,7 +48,7 @@ int writerReadDISC(int status, int fd)
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
     }
-    if (writerDiscStateMachine(status, recvBuf))
+    if (discStateMachine(status, recvBuf, &currentState,&currentIndex))
     {
       msg[currentIndex] = recvBuf[0];
       res = 0;
@@ -612,38 +527,3 @@ int setupWriterConnection(int fd)
 
   return 0;
 }
-
-// int main(int argc, char **argv)
-// { 
-
-
-//   /*
-//     Open serial port device for reading and writing and not as controlling tty
-//     because we don't want to get killed if linenoise sends CTRL-C.
-//   */
-  
-
-//   //WRITE
-  
-
-//   /* 
-//     Criação de dados.
-//   */
-
-//   char data[255];
-//   strcpy(data, "Padoru");
-//   sendInfo(data, strlen(data));
-//   readRR();
-//   strcpy(data, "Padoru");
-//   sendInfo(data, strlen(data));
-//   readRR();
-
-//   sendSupervisionPacket(SENDER_A, DISC_C, &protocol, fd);
-//   //writerReadDISC();
-//   sendSupervisionPacket(RECEIVER_A, UA_C, &protocol, fd);
-
-  
-
-//   close(fd);
-//   return 0;
-// }

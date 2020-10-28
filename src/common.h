@@ -57,3 +57,5 @@ void fillProtocol(struct linkLayer *protocol ,char* port, int Ns);
 int sendSupervisionPacket(char addressField, char controlByte,struct linkLayer * protocol, int fd);
 
 void updateSequenceNumber(struct linkLayer *protocol);
+
+int discStateMachine(int status, unsigned char *buf, int * currentState, int* currentIndex);

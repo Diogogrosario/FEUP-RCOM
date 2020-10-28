@@ -691,22 +691,3 @@ void setupReaderConnection(int fd)
   //WRITE BACK
   sendSupervisionPacket(SENDER_A, UA_C, &protocol, fd);
 }
-
-// int main(int argc, char **argv)
-// {
-//   STOP = FALSE;
-
-//   /*
-//     ler os dados
-//   */
-//   while (1)
-//   {
-//     readInfo();
-//   }
-
-//   //receiverReadDISC();
-//   sendSupervisionPacket(RECEIVER_A, DISC_C, &protocol, fd);
-//   //receiverReadUA();
-
-//   return 0;
-// }
