@@ -195,6 +195,19 @@ int decodeAppPacket(unsigned char *appPacket, int bytesRead)
     return TRUE;
 }
 
+int llclose(int fd)
+{
+    if(app.status == TRANSMITTER)   
+    {
+        return transmitterDisconnect(fd);
+    }
+    if(app.status == RECEIVER)   
+    {
+        return receiverDisconnect(fd);
+    }
+    return -1;
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 3)
@@ -250,6 +263,7 @@ int main(int argc, char **argv)
         llwrite(app.fileDescriptor, pack, packSize);
 
         closeWriter(app.fileDescriptor);
+        llclose(app.fileDescriptor);
     }
     else if (!strcmp(argv[1], "reader"))
     {
@@ -266,5 +280,6 @@ int main(int argc, char **argv)
         closeReader(app.fileDescriptor);
         free(writeToFile);
         free(fileName);
+        llclose(app.fileDescriptor);
     }
 }

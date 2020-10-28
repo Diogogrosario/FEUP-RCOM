@@ -11,3 +11,7 @@ void setupReaderConnection(int fd);
 int openReader(char * port);
 
 void closeReader(int fd);
+
+int sendReaderDISC(int fd);
+
+int receiverDisconnect(int fd);

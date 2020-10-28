@@ -21,6 +21,8 @@ int sendSupervisionPacket(char addressField, char controlByte,struct linkLayer* 
   return 0;
 }
 
+
+
 void fillProtocol(struct linkLayer *protocol ,char* port, int Ns){
   strcpy(protocol->port,port);
   protocol->port[strlen(port)] = '\0'; 

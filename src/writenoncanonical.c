@@ -33,6 +33,132 @@ static void atende(int signo) // atende alarme
   }
 }
 
+int writerDiscStateMachine(int status, unsigned char *buf)
+{
+  switch (currentState)
+  {
+  case START:
+    if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      currentIndex++;
+      return TRUE;
+    }
+    break;
+  case FLAG_RCV:
+    if (buf[0] == status)
+    {
+      currentState = A_RCV;
+      currentIndex++;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+      return TRUE;
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+  case A_RCV:
+    if (buf[0] == DISC_C)
+    {
+      currentIndex++;
+      currentState = C_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentIndex = 0;
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+  case C_RCV:
+    if (buf[0] == (DISC_C ^ status))
+    {
+      currentIndex++;
+      currentState = BCC_OK;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentIndex = 0;
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+  case BCC_OK:
+    if (buf[0] == FLAG)
+    {
+      currentIndex++;
+      currentState = DONE;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+
+  default:
+    break;
+  }
+  currentIndex = 0;
+  return FALSE;
+}
+
+int writerReadDISC(int status, int fd)
+{
+  STOP=FALSE;
+  unsigned char recvBuf[5];
+  while (STOP == FALSE)
+  {
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if(activatedAlarm)
+    {
+      printf("trying again\n");
+      activatedAlarm = FALSE;
+      write(fd,protocol.frame,protocol.frameSize);
+      alarm(protocol.timeout);
+    }
+    if (writerDiscStateMachine(status, recvBuf))
+    {
+      msg[currentIndex] = recvBuf[0];
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        protocol.currentTry = 0;
+        printf("received DISC message ");
+        fflush(stdout);
+        write(1, msg, 6);
+        printf(" with a total size of %d bytes\n", 6);
+        //read(fd,recvBuf,1);
+        currentIndex = 0;
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
+  return 0;
+}
+
 int openWriter(char * port)
 {
 
@@ -166,7 +292,7 @@ int sendInfo(unsigned char *info, int size, int fd)
   return res;
 }
 
-int uaStateMachine(unsigned char *buf)
+int writerUaStateMachine(unsigned char *buf)
 {
   switch (currentState)
   {
@@ -249,6 +375,14 @@ int uaStateMachine(unsigned char *buf)
   }
   currentIndex = 0;
   return FALSE;
+}
+
+int transmitterDisconnect(int fd)
+{
+  sendSupervisionPacket(SENDER_A, DISC_C, &protocol,fd);
+  writerReadDISC(RECEIVER_A,fd);
+  sendSupervisionPacket(RECEIVER_A,UA_C, &protocol,fd);
+  return 1;
 }
 
 int rrStateMachine(unsigned char *buf, int fd)
@@ -370,7 +504,7 @@ int rrStateMachine(unsigned char *buf, int fd)
   return FALSE;
 }
 
-int readUA(int fd)
+int writerReadUA(int fd)
 {
   STOP=FALSE;
 
@@ -386,7 +520,7 @@ int readUA(int fd)
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
     }
-    if (uaStateMachine(recvBuf))
+    if (writerUaStateMachine(recvBuf))
     {
       msg[currentIndex] = recvBuf[0];
       res = 0;
@@ -467,7 +601,7 @@ int setupWriterConnection(int fd)
   sigaction(SIGALRM, &psa, NULL);
 
   alarm(protocol.timeout);
-  readUA(fd);
+  writerReadUA(fd);
 
   return 0;
 }
@@ -498,7 +632,7 @@ int setupWriterConnection(int fd)
 //   readRR();
 
 //   sendSupervisionPacket(SENDER_A, DISC_C, &protocol, fd);
-//   //readDISC();
+//   //writerReadDISC();
 //   sendSupervisionPacket(RECEIVER_A, UA_C, &protocol, fd);
 
   

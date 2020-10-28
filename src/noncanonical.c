@@ -9,10 +9,109 @@ static volatile int STOP = FALSE;
 static int currentState = 0;
 struct linkLayer protocol;
 struct termios oldtio, newtio;
+int activatedAlarm = FALSE;
 
 unsigned char msg[MAX_SIZE*2+7];
 static int res;
 static int currentIndex = 0;
+
+static void atende(int signo) // atende alarme
+{
+  switch (signo){
+    case SIGALRM:
+      
+      if(protocol.currentTry>=protocol.numTransmissions)
+        exit(1);
+      protocol.currentTry++;
+      activatedAlarm = TRUE;
+      break;
+  }
+}
+
+int receiverDiscStateMachine(int status, unsigned char *buf)
+{
+  switch (currentState)
+  {
+  case START:
+    if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      currentIndex++;
+      return TRUE;
+    }
+    break;
+  case FLAG_RCV:
+    if (buf[0] == status)
+    {
+      currentState = A_RCV;
+      currentIndex++;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+      return TRUE;
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+  case A_RCV:
+    if (buf[0] == DISC_C)
+    {
+      currentIndex++;
+      currentState = C_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentIndex = 0;
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+  case C_RCV:
+    if (buf[0] == (DISC_C ^ status))
+    {
+      currentIndex++;
+      currentState = BCC_OK;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentIndex = 0;
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+  case BCC_OK:
+    if (buf[0] == FLAG)
+    {
+      currentIndex++;
+      currentState = DONE;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+
+  default:
+    break;
+  }
+  currentIndex = 0;
+  return FALSE;
+}
 
 int verifyBCC()
 {
@@ -195,6 +294,183 @@ int infoStateMachine(unsigned char *buf, int fd)
   }
 
   return FALSE;
+}
+
+int receiverReadDISC(int status, int fd)
+{
+  STOP=FALSE;
+  unsigned char recvBuf[5];
+  while (STOP == FALSE)
+  {
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if(activatedAlarm)
+    {
+      printf("trying again\n");
+      activatedAlarm = FALSE;
+      write(fd,protocol.frame,protocol.frameSize);
+      alarm(protocol.timeout);
+    }
+    if (receiverDiscStateMachine(status, recvBuf))
+    {
+      msg[currentIndex] = recvBuf[0];
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        protocol.currentTry = 0;
+        printf("received DISC message ");
+        fflush(stdout);
+        write(1, msg, 6);
+        printf(" with a total size of %d bytes\n", 6);
+        //read(fd,recvBuf,1);
+        currentIndex = 0;
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
+  return 0;
+}
+
+int receiverUaStateMachine(int status,unsigned char *buf)
+{
+  switch (currentState)
+  {
+  case START:
+    if (buf[0] == FLAG)
+    {
+      currentState = FLAG_RCV;
+      currentIndex++;
+      return TRUE;
+    }
+    break;
+  case FLAG_RCV:
+    if (buf[0] == status)
+    {
+      currentState = A_RCV;
+      currentIndex++;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+      return TRUE;
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+  case A_RCV:
+    if (buf[0] == UA_C)
+    {
+      currentIndex++;
+      currentState = C_RCV;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentIndex = 0;
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+  case C_RCV:
+    if (buf[0] == (UA_C ^ status))
+    {
+      currentIndex++;
+      currentState = BCC_OK;
+      return TRUE;
+    }
+    else if (buf[0] == FLAG)
+    {
+      currentIndex = 0;
+      currentState = FLAG_RCV;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+  case BCC_OK:
+    if (buf[0] == FLAG)
+    {
+      currentIndex++;
+      currentState = DONE;
+      return TRUE;
+    }
+    else
+    {
+      currentIndex = 0;
+      currentState = START;
+    }
+    break;
+
+  default:
+    break;
+  }
+  currentIndex = 0;
+  return FALSE;
+}
+
+int receiverReadUA(int status, int fd)
+{
+  STOP=FALSE;
+
+  unsigned char recvBuf[5];
+  while (STOP == FALSE)
+  {
+    /* loop for input */
+    res += read(fd, recvBuf, 1); /* returns after 5 chars have been input */
+    if(activatedAlarm)
+    {
+      printf("trying again\n");
+      activatedAlarm = FALSE;
+      write(fd,protocol.frame,protocol.frameSize);
+      alarm(protocol.timeout); 
+    }
+    if (receiverUaStateMachine(status,recvBuf))
+    {
+      msg[currentIndex] = recvBuf[0];
+      res = 0;
+      if (currentState == DONE)
+      {
+        alarm(0);
+        protocol.currentTry = 0;
+        printf("received UA message ");
+        fflush(stdout);
+        write(1, msg, 6);
+        printf(" with a total size of %d bytes\n", 6);
+        //read(fd,recvBuf,1);
+        currentIndex = 0;
+        currentState = START;
+        STOP = TRUE;
+      }
+    }
+    else
+    {
+      msg[0] = '\0';
+    }
+  }
+  return 0;
+}
+
+int receiverDisconnect(int fd)
+{
+  receiverReadDISC(SENDER_A,fd);
+  sendSupervisionPacket(RECEIVER_A,DISC_C,&protocol,fd);
+  alarm(3);
+  receiverReadUA(RECEIVER_A,fd);
+  return 1;
 }
 
 int setStateMachine(char *buf)
@@ -405,6 +681,13 @@ void setupReaderConnection(int fd)
   //RECEIVE
   readSET(fd);
 
+  //ALARM
+  struct sigaction psa;
+  psa.sa_handler = atende;
+  sigemptyset(&psa.sa_mask);
+  psa.sa_flags=0;
+  sigaction(SIGALRM, &psa, NULL);
+
   //WRITE BACK
   sendSupervisionPacket(SENDER_A, UA_C, &protocol, fd);
 }
@@ -421,9 +704,9 @@ void setupReaderConnection(int fd)
 //     readInfo();
 //   }
 
-//   //readDISC();
+//   //receiverReadDISC();
 //   sendSupervisionPacket(RECEIVER_A, DISC_C, &protocol, fd);
-//   //readUA();
+//   //receiverReadUA();
 
 //   return 0;
 // }

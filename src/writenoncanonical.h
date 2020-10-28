@@ -13,3 +13,5 @@ void closeWriter(int fd);
 int readRR(int fd);
 
 int readUA(int fd);
+
+int transmitterDisconnect(int fd);
