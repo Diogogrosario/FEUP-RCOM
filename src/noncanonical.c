@@ -29,91 +29,6 @@ static void atende(int signo) // atende alarme
   }
 }
 
-int receiverDiscStateMachine(int status, unsigned char *buf)
-{
-  switch (currentState)
-  {
-  case START:
-    if (buf[0] == FLAG)
-    {
-      currentState = FLAG_RCV;
-      currentIndex++;
-      return TRUE;
-    }
-    break;
-  case FLAG_RCV:
-    if (buf[0] == status)
-    {
-      currentState = A_RCV;
-      currentIndex++;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-      return TRUE;
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-  case A_RCV:
-    if (buf[0] == DISC_C)
-    {
-      currentIndex++;
-      currentState = C_RCV;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-    {
-      currentIndex = 0;
-      currentState = FLAG_RCV;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-  case C_RCV:
-    if (buf[0] == (DISC_C ^ status))
-    {
-      currentIndex++;
-      currentState = BCC_OK;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-    {
-      currentIndex = 0;
-      currentState = FLAG_RCV;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-  case BCC_OK:
-    if (buf[0] == FLAG)
-    {
-      currentIndex++;
-      currentState = DONE;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-
-  default:
-    break;
-  }
-  currentIndex = 0;
-  return FALSE;
-}
-
 int verifyBCC()
 {
   unsigned char bccControl = '\0';
@@ -304,7 +219,7 @@ int receiverReadDISC(int status, int fd)
       write(fd, protocol.frame, protocol.frameSize);
       alarm(protocol.timeout);
     }
-    if (receiverDiscStateMachine(status, recvBuf))
+    if (discStateMachine(status, recvBuf, &currentState, &currentIndex))
     {
       msg[currentIndex] = recvBuf[0];
       res = 0;
