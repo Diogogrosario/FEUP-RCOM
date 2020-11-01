@@ -211,12 +211,17 @@ int llclose(int fd)
 
 int main(int argc, char **argv)
 {
-
+    FILE *f1;
     if (!strcmp(argv[1], "writer"))
     {
         if (argc < 3)
         {
             printf("Usage : ./application writer [path_to_file]");
+            exit(1);
+        }
+        f1 = fopen(argv[2], "r");
+        if(f1 == NULL){
+            printf("File does not exist\n");
             exit(1);
         }
         app.status = TRANSMITTER;
@@ -242,7 +247,7 @@ int main(int argc, char **argv)
     {
         unsigned char pack[MAX_SIZE];
 
-        FILE *f1 = fopen(argv[2], "r");
+        
         fseek(f1, 0, SEEK_END);
         long filesize = ftell(f1);
 

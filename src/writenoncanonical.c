@@ -5,20 +5,15 @@
 #include "common.h"
 #include "application.h"
 
-static volatile int STOP = FALSE;
-
 struct linkLayer protocol;
 struct termios oldtio, newtio;
 
-
 static int currentState = 0;
-static int currentPos = 4;
-unsigned char msg[MAX_SIZE*2+7];
-unsigned char buf[MAX_SIZE*2+7];
 static int currentIndex = 0;
-static int activatedAlarm = FALSE;
 
-static int res;
+static int activatedAlarm = FALSE;
+static volatile int STOP = FALSE;
+
 
 static void atende(int signo) // atende alarme
 {
@@ -39,7 +34,7 @@ int writerReadDISC(int status, int fd)
   unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
-    res += read(fd, recvBuf, 1);
+    read(fd, recvBuf, 1);
     if(activatedAlarm)
     {
       activatedAlarm = FALSE;
@@ -48,8 +43,6 @@ int writerReadDISC(int status, int fd)
     }
     if (discStateMachine(status, recvBuf, &currentState,&currentIndex))
     {
-      msg[currentIndex] = recvBuf[0];
-      res = 0;
       if (currentState == DONE)
       {
         alarm(0);
@@ -58,10 +51,6 @@ int writerReadDISC(int status, int fd)
         currentState = START;
         STOP = TRUE;
       }
-    }
-    else
-    {
-      msg[0] = '\0';
     }
   }
   return 0;
@@ -144,7 +133,8 @@ int stuffChar(char info, unsigned char *buf)
 
 int sendInfo(unsigned char *info, int size, int fd)
 {
-  currentPos = 4;
+  int res = 0;
+  int currentPos = 4;
 
   char sendMessage[size*2+7];
   sendMessage[0] = FLAG;
@@ -195,91 +185,6 @@ int sendInfo(unsigned char *info, int size, int fd)
 
   alarm(protocol.timeout);
   return res;
-}
-
-int writerUaStateMachine(unsigned char *buf)
-{
-  switch (currentState)
-  {
-  case START:
-    if (buf[0] == FLAG)
-    {
-      currentState = FLAG_RCV;
-      currentIndex++;
-      return TRUE;
-    }
-    break;
-  case FLAG_RCV:
-    if (buf[0] == SENDER_A)
-    {
-      currentState = A_RCV;
-      currentIndex++;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-      return TRUE;
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-  case A_RCV:
-    if (buf[0] == UA_C)
-    {
-      currentIndex++;
-      currentState = C_RCV;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-    {
-      currentIndex = 0;
-      currentState = FLAG_RCV;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-  case C_RCV:
-    if (buf[0] == (UA_C ^ SENDER_A))
-    {
-      currentIndex++;
-      currentState = BCC_OK;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-    {
-      currentIndex = 0;
-      currentState = FLAG_RCV;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-  case BCC_OK:
-    if (buf[0] == FLAG)
-    {
-      currentIndex++;
-      currentState = DONE;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-
-  default:
-    break;
-  }
-  currentIndex = 0;
-  return FALSE;
 }
 
 int transmitterDisconnect(int fd)
@@ -410,24 +315,22 @@ int rrStateMachine(unsigned char *buf, int fd)
   return FALSE;
 }
 
-int writerReadUA(int fd)
+int writerReadUA(int status,int fd)
 {
   STOP=FALSE;
 
   unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
-    res += read(fd, recvBuf, 1); 
+    read(fd, recvBuf, 1); 
     if(activatedAlarm)
     {
       activatedAlarm = FALSE;
       write(fd,protocol.frame,protocol.frameSize);
       alarm(protocol.timeout);
     }
-    if (writerUaStateMachine(recvBuf))
+    if (UAStateMachine(recvBuf,status,&currentState,&currentIndex))
     {
-      msg[currentIndex] = recvBuf[0];
-      res = 0;
       if (currentState == DONE)
       {
         alarm(0);
@@ -437,10 +340,6 @@ int writerReadUA(int fd)
         STOP = TRUE;
       }
     }
-    else
-    {
-      msg[0] = '\0';
-    }
   }
   return 0;
 }
@@ -448,11 +347,10 @@ int writerReadUA(int fd)
 int readRR(int fd)
 {
   unsigned char recvBuf[5];
-  res = 0;
   STOP = FALSE;
   while (STOP == FALSE)
   {
-    res += read(fd, recvBuf, 1); 
+    read(fd, recvBuf, 1); 
     if(activatedAlarm)
     {
       activatedAlarm = FALSE;
@@ -461,8 +359,6 @@ int readRR(int fd)
     }
     if (rrStateMachine(recvBuf,fd))
     {
-      msg[currentIndex] = recvBuf[0];
-      res = 0;
       if (currentState == DONE)
       {
         alarm(0);
@@ -472,10 +368,6 @@ int readRR(int fd)
         currentState = START;
         STOP = TRUE;
       }
-    }
-    else
-    {
-      msg[0] = '\0';
     }
   }
   return 0;
@@ -493,7 +385,7 @@ int setupWriterConnection(int fd)
   sigaction(SIGALRM, &psa, NULL);
 
   alarm(protocol.timeout);
-  writerReadUA(fd);
+  writerReadUA(SENDER_A,fd);
 
   return 0;
 }

@@ -4,16 +4,14 @@
 #include <sys/types.h>
 #include "common.h"
 
-static volatile int STOP = FALSE;
-
-static int currentState = 0;
 struct linkLayer protocol;
 struct termios oldtio, newtio;
-int activatedAlarm = FALSE;
 
-unsigned char msg[MAX_SIZE * 2 + 7];
-static int res;
+static int currentState = 0;
 static int currentIndex = 0;
+
+static volatile int STOP = FALSE;
+int activatedAlarm = FALSE;
 
 static void atende(int signo) // atende alarme
 {
@@ -29,7 +27,7 @@ static void atende(int signo) // atende alarme
   }
 }
 
-int verifyBCC()
+int verifyBCC(unsigned char* msg)
 {
   unsigned char bccControl = '\0';
   for (int i = 0; i < currentIndex - 1; i++)
@@ -44,7 +42,7 @@ int verifyBCC()
   return FALSE;
 }
 
-int infoStateMachine(unsigned char *buf, int fd)
+int infoStateMachine(unsigned char *buf, int fd, unsigned char * msg)
 {
 
   static char C;
@@ -133,9 +131,8 @@ int infoStateMachine(unsigned char *buf, int fd)
   case BCC_OK: //receives info
     if (buf[0] == FLAG)
     {
-      if (verifyBCC())
+      if (verifyBCC(msg))
       {
-        res = 0;
         currentState = DONE;
         if (protocol.sequenceNumber == 1 && C == INFO_C_1)
         {
@@ -167,18 +164,16 @@ int infoStateMachine(unsigned char *buf, int fd)
     }
     else if (buf[0] == ESCAPE)
     {
-      res += read(fd, buf, 1);
+      read(fd, buf, 1);
       if (buf[0] == ESCAPEFLAG)
       {
         msg[currentIndex] = '~';
         currentIndex++;
-        res = 0;
       }
       else if (buf[0] == ESCAPEESCAPE)
       {
         msg[currentIndex] = '}';
         currentIndex++;
-        res = 0;
       }
       else
       {
@@ -186,7 +181,6 @@ int infoStateMachine(unsigned char *buf, int fd)
         currentIndex++;
         msg[currentIndex] = buf[0];
         currentIndex++;
-        res = 0;
       }
       return TRUE;
     }
@@ -194,7 +188,6 @@ int infoStateMachine(unsigned char *buf, int fd)
     {
       msg[currentIndex] = buf[0];
       currentIndex++;
-      res = 0;
       return TRUE;
     }
     break;
@@ -212,7 +205,7 @@ int receiverReadDISC(int status, int fd)
   unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
-    res += read(fd, recvBuf, 1);
+    read(fd, recvBuf, 1);
     if (activatedAlarm)
     {
       activatedAlarm = FALSE;
@@ -221,8 +214,6 @@ int receiverReadDISC(int status, int fd)
     }
     if (discStateMachine(status, recvBuf, &currentState, &currentIndex))
     {
-      msg[currentIndex] = recvBuf[0];
-      res = 0;
       if (currentState == DONE)
       {
         alarm(0);
@@ -232,97 +223,8 @@ int receiverReadDISC(int status, int fd)
         STOP = TRUE;
       }
     }
-    else
-    {
-      msg[0] = '\0';
-    }
   }
   return 0;
-}
-
-int receiverUaStateMachine(int status, unsigned char *buf)
-{
-  switch (currentState)
-  {
-  case START:
-    if (buf[0] == FLAG)
-    {
-      currentState = FLAG_RCV;
-      currentIndex++;
-      return TRUE;
-    }
-    break;
-  case FLAG_RCV:
-    if (buf[0] == status)
-    {
-      currentState = A_RCV;
-      currentIndex++;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-      return TRUE;
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-  case A_RCV:
-    if (buf[0] == UA_C)
-    {
-      currentIndex++;
-      currentState = C_RCV;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-    {
-      currentIndex = 0;
-      currentState = FLAG_RCV;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-  case C_RCV:
-    if (buf[0] == (UA_C ^ status))
-    {
-      currentIndex++;
-      currentState = BCC_OK;
-      return TRUE;
-    }
-    else if (buf[0] == FLAG)
-    {
-      currentIndex = 0;
-      currentState = FLAG_RCV;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-  case BCC_OK:
-    if (buf[0] == FLAG)
-    {
-      currentIndex++;
-      currentState = DONE;
-      return TRUE;
-    }
-    else
-    {
-      currentIndex = 0;
-      currentState = START;
-    }
-    break;
-
-  default:
-    break;
-  }
-  currentIndex = 0;
-  return FALSE;
 }
 
 int receiverReadUA(int status, int fd)
@@ -332,17 +234,15 @@ int receiverReadUA(int status, int fd)
   unsigned char recvBuf[5];
   while (STOP == FALSE)
   {
-    res += read(fd, recvBuf, 1);
+    read(fd, recvBuf, 1);
     if (activatedAlarm)
     {
       activatedAlarm = FALSE;
       write(fd, protocol.frame, protocol.frameSize);
       alarm(protocol.timeout);
     }
-    if (receiverUaStateMachine(status, recvBuf))
+    if (UAStateMachine(recvBuf,status,&currentState,&currentIndex))
     {
-      msg[currentIndex] = recvBuf[0];
-      res = 0;
       if (currentState == DONE)
       {
         alarm(0);
@@ -351,10 +251,6 @@ int receiverReadUA(int status, int fd)
         currentState = START;
         STOP = TRUE;
       }
-    }
-    else
-    {
-      msg[0] = '\0';
     }
   }
   return 0;
@@ -459,14 +355,16 @@ int setStateMachine(char *buf)
 
 int readInfo(int fd, unsigned char *appPacket)
 {
+  
   STOP = FALSE;
-  unsigned char buf[MAX_SIZE * 2 + 7];
+  unsigned char msg[MAX_SIZE];
+  unsigned char buf[2];
   while (STOP == FALSE)
   {
     buf[0] = '\0';
-    res += read(fd, buf, 1);
+    read(fd, buf, 1);
 
-    if (infoStateMachine(buf, fd))
+    if (infoStateMachine(buf, fd,msg))
     {
       if (currentState == DONE)
       {
@@ -497,23 +395,16 @@ int readSET(int fd)
   char buf[5];
   while (STOP == FALSE)
   {
-    res += read(fd, buf, 1);
+    read(fd, buf, 1);
 
     if (setStateMachine(buf))
     {
-      msg[currentIndex] = buf[0];
-      res = 0;
       if (currentState == DONE)
       {
         currentIndex = 0;
         currentState = START;
         STOP = TRUE;
-        msg[0] = '\0';
       }
-    }
-    else
-    {
-      msg[0] = '\0';
     }
   }
   return 0;

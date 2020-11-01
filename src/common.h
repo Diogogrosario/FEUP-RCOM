@@ -59,3 +59,5 @@ int sendSupervisionPacket(char addressField, char controlByte,struct linkLayer *
 void updateSequenceNumber(struct linkLayer *protocol);
 
 int discStateMachine(int status, unsigned char *buf, int * currentState, int* currentIndex);
+
+int UAStateMachine(unsigned char *buf, char aField, int *currentState, int*currentIndex);
