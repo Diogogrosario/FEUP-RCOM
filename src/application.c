@@ -225,7 +225,7 @@ int main(int argc, char **argv)
             exit(1);
         }
         app.status = TRANSMITTER;
-        app.fileDescriptor = llopen("/dev/ttyS10", TRANSMITTER);
+        app.fileDescriptor = llopen("/dev/ttyS0", TRANSMITTER);
     }
     else if (!strcmp(argv[1], "reader"))
     {
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
             exit(1);
         }
         app.status = RECEIVER;
-        app.fileDescriptor = llopen("/dev/ttyS11", RECEIVER);
+        app.fileDescriptor = llopen("/dev/ttyS0", RECEIVER);
     }
     else
     {
