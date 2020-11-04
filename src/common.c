@@ -16,7 +16,6 @@ int sendSupervisionPacket(char addressField, char controlByte,struct linkLayer* 
   return 0;
 }
 
-
 int UAStateMachine(unsigned char *buf, char aField, int *currentState, int*currentIndex)
 {
   switch (*currentState)
