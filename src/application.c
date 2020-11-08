@@ -212,38 +212,46 @@ int llclose(int fd)
 int main(int argc, char **argv)
 {
     FILE *f1;
-    if (!strcmp(argv[1], "writer"))
+    if (!strcmp(argv[2], "transmitter"))
     {
-        if (argc < 3)
+        if (argc < 4)
         {
-            printf("Usage : ./application writer [path_to_file]");
+            printf("Usage : ./application [port] transmitter [path_to_file]");
             exit(1);
         }
-        f1 = fopen(argv[2], "r");
+        f1 = fopen(argv[3], "r");
         if(f1 == NULL){
             printf("File does not exist\n");
             exit(1);
         }
         app.status = TRANSMITTER;
-        app.fileDescriptor = llopen("/dev/ttyS0", TRANSMITTER);
+        char port[20] = "/dev/ttyS";
+        char portNumber[20];
+        strcpy(portNumber,argv[1]);
+        strcat(port,portNumber);
+        app.fileDescriptor = llopen(port, TRANSMITTER);
     }
-    else if (!strcmp(argv[1], "reader"))
+    else if (!strcmp(argv[2], "receiver"))
     {
         if (argc < 2)
         {
-            printf("Usage : ./application reader");
+            printf("Usage : ./application [port] receiver");
             exit(1);
         }
         app.status = RECEIVER;
-        app.fileDescriptor = llopen("/dev/ttyS0", RECEIVER);
+        char port[20] = "/dev/ttyS";
+        char portNumber[20];
+        strcpy(portNumber,argv[1]);
+        strcat(port,portNumber);
+        app.fileDescriptor = llopen(port, RECEIVER);
     }
     else
     {
-        printf("Usage : ./application writer [path_to_file] or./application reader");
+        printf("Usage : ./application [port] transmitter [path_to_file] or ./application [port] receiver");
         exit(1);
     }
 
-    if (!strcmp(argv[1], "writer"))
+    if (!strcmp(argv[2], "transmitter"))
     {
         unsigned char pack[MAX_SIZE];
 
@@ -251,7 +259,7 @@ int main(int argc, char **argv)
         fseek(f1, 0, SEEK_END);
         long filesize = ftell(f1);
 
-        int packSize = buildControlPacket(argv[2], filesize, pack, CONTROL_START);
+        int packSize = buildControlPacket(argv[3], filesize, pack, CONTROL_START);
         printf("Started sending file\n");
         llwrite(app.fileDescriptor, pack, packSize);
 
@@ -272,14 +280,14 @@ int main(int argc, char **argv)
 
             llwrite(app.fileDescriptor, packet, size);
         }
-        packSize = buildControlPacket(argv[2], filesize, pack, CONTROL_END);
+        packSize = buildControlPacket(argv[3], filesize, pack, CONTROL_END);
         llwrite(app.fileDescriptor, pack, packSize);
         printf("Finished sending file\n");
 
         llclose(app.fileDescriptor);
         closeWriter(app.fileDescriptor);
     }
-    else if (!strcmp(argv[1], "reader"))
+    else if (!strcmp(argv[2], "receiver"))
     {
         printf("Started receiving file\n");
         while (!finished)
