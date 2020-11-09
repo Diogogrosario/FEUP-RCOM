@@ -292,10 +292,10 @@ int main(int argc, char **argv)
         llwrite(app.fileDescriptor, pack, packSize);
         printf("Finished sending file\n");
 
+        llclose(app.fileDescriptor);
         gettimeofday(&t1, 0);
         long elapsed = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec/1000) - (t0.tv_usec/1000);
         printf("time of program: %ld\n", elapsed);
-        llclose(app.fileDescriptor);
         closeWriter(app.fileDescriptor);
     }
     else if (!strcmp(argv[2], "receiver"))
