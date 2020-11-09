@@ -121,11 +121,6 @@ int infoStateMachine(unsigned char *buf, int fd, unsigned char * msg)
     }
     else
     {
-      if (protocol.sequenceNumber == 0)
-        sendSupervisionPacket(SENDER_A, REJ_C_0, &protocol, fd);
-      else if (protocol.sequenceNumber == 1)
-        sendSupervisionPacket(SENDER_A, REJ_C_1, &protocol, fd);
-
       currentState = START;
     }
   case BCC_OK: //receives info
