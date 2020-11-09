@@ -347,6 +347,7 @@ int rrStateMachine(unsigned char *buf, int fd)
       currentIndex = 0;
       currentState = START;
     }
+    break;
   case BCC_OK:
     if (buf[0] == FLAG)
     {

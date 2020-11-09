@@ -80,6 +80,7 @@ int UAStateMachine(unsigned char *buf, char aField, int *currentState, int*curre
       *currentIndex = 0;
       *currentState = START;
     }
+    break;
   case BCC_OK:
     if (buf[0] == FLAG)
     {
