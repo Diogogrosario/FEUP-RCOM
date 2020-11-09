@@ -14,6 +14,9 @@ static int currentIndex = 0;
 static int activatedAlarm = FALSE;
 static volatile int STOP = FALSE;
 
+int bcc1 = 0;
+int bcc2 = 0;
+
 
 static void atende(int signo) // atende alarme
 {
@@ -131,20 +134,43 @@ int stuffChar(char info, unsigned char *buf)
   }
 }
 
+int introduceError(){
+  return rand() % 100;
+}
+
+
 int sendInfo(unsigned char *info, int size, int fd)
 {
   int res = 0;
   int currentPos = 4;
 
   char sendMessage[size*2+7];
+  char copy[size*2+7];
+
+  copy[0] = FLAG;
+  copy[1] = SENDER_A;
+
   sendMessage[0] = FLAG;
   sendMessage[1] = SENDER_A;
-  if (protocol.sequenceNumber == 1)
+  if (protocol.sequenceNumber == 1){
     sendMessage[2] = INFO_C_1;
-  else if (protocol.sequenceNumber == 0)
+    copy[2] = INFO_C_1;
+  }
+  else if (protocol.sequenceNumber == 0){
     sendMessage[2] = INFO_C_0;
+    copy[2] = INFO_C_0;
+  }
 
-  sendMessage[3] = SENDER_A ^ sendMessage[2];
+  int bcc1Error = introduceError();
+  if(bcc1Error  < 70 && bcc1 <8){
+    sendMessage[3] = 'a';
+    bcc1++;
+    printf("introduced error in bcc1\n");
+  }
+  else
+    sendMessage[3] = SENDER_A ^ sendMessage[2];
+
+  copy[3] = SENDER_A ^ sendMessage[2];
 
   unsigned char bcc = '\0';
   int offset = 0;
@@ -157,30 +183,57 @@ int sendInfo(unsigned char *info, int size, int fd)
     if (stuffChar(info[i], stuffedBuf))
     {
       sendMessage[4 + i + offset] = stuffedBuf[0];
+      copy[4+i+offset] = stuffedBuf[0];
       offset++;
       sendMessage[4 + i + offset] = stuffedBuf[1];
+      copy[4 + i + offset] = stuffedBuf[1];
     }
-    else
+    else{
       sendMessage[4 + i + offset] = stuffedBuf[0];
+      copy[4 + i + offset] = stuffedBuf[0];
+    }
     currentPos++;
+  }
+  
+  unsigned char copyBCC = '\0';
+  int bcc2Error = introduceError();
+  int offset2 = offset;
+  if(bcc2Error  < 70 && bcc2 <8){
+    copyBCC = 'a';
+    bcc2++;
+    printf("introduced error in bcc2\n");
   }
 
   unsigned char stuffedBCC[2];
-  if (stuffChar(bcc, stuffedBCC))
+  if (stuffChar(copyBCC, stuffedBCC))
   {
     sendMessage[currentPos + offset] = stuffedBCC[0];
     offset++;
     sendMessage[currentPos + offset] = stuffedBCC[1];
   }
-  else
+  else{
     sendMessage[currentPos + offset] = stuffedBCC[0];
+  }
+
+  stuffedBCC[0] = '\0';
+  if (stuffChar(bcc, stuffedBCC))
+  {
+    copy[currentPos + offset2] = stuffedBCC[0];
+    offset2++;
+    copy[currentPos + offset2] = stuffedBCC[1];
+  }
+  else{
+    copy[currentPos + offset2] = stuffedBCC[0];
+
+  }
   currentPos++;
   sendMessage[currentPos + offset] = FLAG;
+  copy[currentPos + offset2] = FLAG;
   currentPos++;
 
   res = write(fd, sendMessage, currentPos + offset + 1);
   protocol.frame[0] = '\0';
-  memcpy(protocol.frame, sendMessage, currentPos + offset + 1);
+  memcpy(protocol.frame, copy, currentPos + offset + 1);
   protocol.frameSize = currentPos + offset + 1;
 
   alarm(protocol.timeout);

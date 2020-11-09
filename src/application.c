@@ -1,6 +1,8 @@
 #include "writenoncanonical.h"
 #include "noncanonical.h"
 #include "application.h"
+#include "time.h"
+#include <sys/time.h>
 #include "common.h"
 
 struct applicationLayer app;
@@ -211,6 +213,9 @@ int llclose(int fd)
 
 int main(int argc, char **argv)
 {
+    struct timeval t0;
+    struct timeval t1;
+    srand(time(NULL));
     FILE *f1;
     if (!strcmp(argv[2], "transmitter"))
     {
@@ -220,15 +225,19 @@ int main(int argc, char **argv)
             exit(1);
         }
         f1 = fopen(argv[3], "r");
-        if(f1 == NULL){
+        if (f1 == NULL)
+        {
             printf("File does not exist\n");
             exit(1);
         }
         app.status = TRANSMITTER;
         char port[20] = "/dev/ttyS";
         char portNumber[20];
-        strcpy(portNumber,argv[1]);
-        strcat(port,portNumber);
+        strcpy(portNumber, argv[1]);
+        strcat(port, portNumber);
+
+        gettimeofday(&t0, 0);
+
         app.fileDescriptor = llopen(port, TRANSMITTER);
     }
     else if (!strcmp(argv[2], "receiver"))
@@ -241,8 +250,8 @@ int main(int argc, char **argv)
         app.status = RECEIVER;
         char port[20] = "/dev/ttyS";
         char portNumber[20];
-        strcpy(portNumber,argv[1]);
-        strcat(port,portNumber);
+        strcpy(portNumber, argv[1]);
+        strcat(port, portNumber);
         app.fileDescriptor = llopen(port, RECEIVER);
     }
     else
@@ -255,7 +264,6 @@ int main(int argc, char **argv)
     {
         unsigned char pack[MAX_SIZE];
 
-        
         fseek(f1, 0, SEEK_END);
         long filesize = ftell(f1);
 
@@ -285,6 +293,9 @@ int main(int argc, char **argv)
         printf("Finished sending file\n");
 
         llclose(app.fileDescriptor);
+        gettimeofday(&t1, 0);
+        long elapsed = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec/1000) - (t0.tv_usec/1000);
+        printf("time of program: %ld\n", elapsed);
         closeWriter(app.fileDescriptor);
     }
     else if (!strcmp(argv[2], "receiver"))
@@ -302,8 +313,9 @@ int main(int argc, char **argv)
         newFile = fopen(path, "wb");
         fwrite(writeToFile, sizeof(char), fileSize, newFile);
         fclose(newFile);
-        printf("File saved in %s\n",path);
+        printf("File saved in %s\n", path);
         llclose(app.fileDescriptor);
+
         closeReader(app.fileDescriptor);
         free(writeToFile);
         free(fileName);
