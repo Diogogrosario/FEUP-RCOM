@@ -15,6 +15,7 @@ int activatedAlarm = FALSE;
 
 static void atende(int signo) // atende alarme
 {
+  printf("Alarm triggered, resending!");
   switch (signo)
   {
   case SIGALRM:
