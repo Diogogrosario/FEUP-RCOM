@@ -14,9 +14,6 @@ static int currentIndex = 0;
 static int activatedAlarm = FALSE;
 static volatile int STOP = FALSE;
 
-int bcc1 = 0;
-int bcc2 = 0;
-
 
 static void atende(int signo) // atende alarme
 {
@@ -162,7 +159,7 @@ int sendInfo(unsigned char *info, int size, int fd)
   }
 
   int bcc1Error = introduceError();
-  if(bcc1Error  < 70 && bcc1 <8){
+  if(bcc1Error  < 2){
     sendMessage[3] = 'a';
     bcc1++;
     printf("introduced error in bcc1\n");
@@ -198,7 +195,7 @@ int sendInfo(unsigned char *info, int size, int fd)
   unsigned char copyBCC = '\0';
   int bcc2Error = introduceError();
   int offset2 = offset;
-  if(bcc2Error  < 70 && bcc2 <8){
+  if(bcc2Error  < 2){
     copyBCC = 'a';
     bcc2++;
     printf("introduced error in bcc2\n");
