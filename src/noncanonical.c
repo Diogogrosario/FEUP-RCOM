@@ -27,30 +27,16 @@ static void atende(int signo) // atende alarme
   }
 }
 
-int verifyBCC(unsigned char* msg)
-{
-  unsigned char bccControl = '\0';
-  for (int i = 0; i < currentIndex - 1; i++)
-  {
-    bccControl ^= msg[i];
-  }
-  if (msg[currentIndex - 1] == bccControl)
-  {
-    return TRUE;
-  }
-
-  return FALSE;
-}
-
 int infoStateMachine(unsigned char *buf, int fd, unsigned char * msg)
 {
-
+  static unsigned char bccControl;
   static char C;
   switch (currentState)
   {
   case START:
     if (buf[0] == FLAG)
     {
+      bccControl = '\0';
       C = '\0';
       currentIndex = 0;
       currentState = FLAG_RCV;
@@ -123,11 +109,14 @@ int infoStateMachine(unsigned char *buf, int fd, unsigned char * msg)
     {
       currentState = START;
     }
+    break;
   case BCC_OK: //receives info
     if (buf[0] == FLAG)
     {
-      if (verifyBCC(msg))
+      bccControl = bccControl ^ msg[currentIndex - 1]; // must remove actual bcc from calculated bcc
+      if (msg[currentIndex - 1] == bccControl)
       {
+        bccControl = '\0';
         currentState = DONE;
         if (protocol.sequenceNumber == 1 && C == INFO_C_1)
         {
@@ -163,18 +152,22 @@ int infoStateMachine(unsigned char *buf, int fd, unsigned char * msg)
       if (buf[0] == ESCAPEFLAG)
       {
         msg[currentIndex] = '~';
+        bccControl ^= msg[currentIndex];
         currentIndex++;
       }
       else if (buf[0] == ESCAPEESCAPE)
       {
         msg[currentIndex] = '}';
+        bccControl ^= msg[currentIndex];
         currentIndex++;
       }
       else
       {
         msg[currentIndex] = '}';
+        bccControl ^= msg[currentIndex];
         currentIndex++;
         msg[currentIndex] = buf[0];
+        bccControl ^= msg[currentIndex];
         currentIndex++;
       }
       return TRUE;
@@ -182,6 +175,7 @@ int infoStateMachine(unsigned char *buf, int fd, unsigned char * msg)
     else
     {
       msg[currentIndex] = buf[0];
+      bccControl ^= msg[currentIndex];
       currentIndex++;
       return TRUE;
     }
@@ -327,6 +321,7 @@ int setStateMachine(char *buf)
     {
       currentState = START;
     }
+    break;
   case BCC_OK:
     if (buf[0] == FLAG)
     {

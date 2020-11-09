@@ -166,6 +166,7 @@ int discStateMachine(int status, unsigned char *buf, int * currentState, int* cu
       *currentIndex = 0;
       *currentState = START;
     }
+    break;
   case BCC_OK:
     if (buf[0] == FLAG)
     {
