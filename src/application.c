@@ -5,11 +5,11 @@
 
 struct applicationLayer app;
 int serialNumber = 0;
-char *fileName;
-long fileSize;
+char *fileName; //saves the file name to compare at the end
+long fileSize; //saves the file size to compare at the end
 char *writeToFile;
 int currentFileArrayIndex;
-int finished = FALSE;
+int finished = FALSE; //indicates if the 'end' packed has been received
 
 int llopen(char *port, int status)
 {

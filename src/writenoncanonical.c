@@ -8,10 +8,10 @@
 struct linkLayer protocol;
 struct termios oldtio, newtio;
 
-static int currentState = 0;
-static int currentIndex = 0;
+static int currentState = 0; //current state in the state machine
+static int currentIndex = 0; //index of the size of the packet received
 
-static int activatedAlarm = FALSE;
+static int activatedAlarm = FALSE; //indicates if the alarm has been triggered
 static volatile int STOP = FALSE;
 
 
