@@ -129,6 +129,7 @@ int infoStateMachine(unsigned char *buf, int fd, unsigned char * msg)
         }
         else
         {
+          usleep(100000);
           if (protocol.sequenceNumber == 0)
             sendSupervisionPacket(SENDER_A, RR_C_0, &protocol, fd);
           else if (protocol.sequenceNumber == 1)
