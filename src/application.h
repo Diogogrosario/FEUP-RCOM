@@ -23,3 +23,11 @@ int llopen(char * port, int status);
 int llwrite(int fd, unsigned char * buffer,int length);
 
 int llread(int fd, unsigned char * buffer);
+
+int buildDataPacket(char *buf, unsigned char *packet, int length);
+
+int buildControlPacket(char *filename, long filesize, unsigned char *pack, char controlField);
+
+int decodeAppPacket(unsigned char *appPacket, int bytesRead);
+
+int llclose(int fd);

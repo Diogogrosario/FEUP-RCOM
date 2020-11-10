@@ -15,3 +15,7 @@ int readRR(int fd);
 int readUA(int fd);
 
 int transmitterDisconnect(int fd);
+
+int writerReadDISC(int status, int fd);
+
+int rrStateMachine(unsigned char *buf, int fd);

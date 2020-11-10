@@ -15,3 +15,9 @@ void closeReader(int fd);
 int sendReaderDISC(int fd);
 
 int receiverDisconnect(int fd);
+
+int infoStateMachine(unsigned char *buf, int fd, unsigned char * msg);
+
+int receiverReadUA(int status, int fd);
+
+int setStateMachine(char *buf);
