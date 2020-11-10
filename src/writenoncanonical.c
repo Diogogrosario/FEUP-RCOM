@@ -160,7 +160,7 @@ int sendInfo(unsigned char *info, int size, int fd)
   }
 
   int bcc1Error = introduceError();
-  if(bcc1Error  < 4){
+  if(bcc1Error  < 0){
     sendMessage[3] = 'a';
     printf("introduced error in bcc1\n");
   }
@@ -195,7 +195,7 @@ int sendInfo(unsigned char *info, int size, int fd)
   unsigned char copyBCC = '\0';
   int bcc2Error = introduceError();
   int offset2 = offset;
-  if(bcc2Error  < 4){
+  if(bcc2Error  < 0){
     copyBCC = 'a';
     printf("introduced error in bcc2\n");
   }
