@@ -1,2 +1,3 @@
-/src/application
-/src/*.o
+/Lab1/application
+/Lab1/*.o
+/Lab2/*.o
