@@ -18,8 +18,6 @@ struct hostent *getHostname(char *host);
 
 // download ftp://[<user>:<password>@]ftp.up.pt/pub
 
-// 
-
 int main(int argc, char **argv){
 
     if(argc != 2){
@@ -56,11 +54,11 @@ void getURL(char * url, char * argv){
     token = strtok(argv,&delimiter);
     token = strtok(NULL,&delimiter); //Skip ftp://
     int isHost = 0;
-    char * host = malloc(sizeof(char)*50);
+    char * testHost = malloc(sizeof(char)*50);
     char * filepath = malloc(sizeof(char)*256);
     while(token != NULL){
         if(isHost == 0){
-            strcpy(host,token);
+            strcpy(testHost,token);
             isHost = 1;
         }
         else{
@@ -70,8 +68,44 @@ void getURL(char * url, char * argv){
         token = strtok(NULL,&delimiter);
     }
 
-    printf("host : %s\n",host);
+    printf("host : %s\n",testHost);
     printf("filepath: %s\n", filepath);
+
+    char* pPosition = strchr(testHost, '@');
+
+    if(pPosition == NULL){
+        printf("its null\n");
+        char * host = malloc(sizeof(char)*50);
+        strcpy(host,testHost);
+        printf("%s",host);
+    }
+    else
+    {
+        char* pointsPosition = strchr(testHost, ':');
+        if(pointsPosition == NULL)
+        {
+            perror("No division between the user and password\n");
+            exit(1);
+        }
+
+        const char dividePass = '@';
+        const char divideUser = ':';
+        char * user = malloc(sizeof(char)*50);
+        char * pass = malloc(sizeof(char)*50);
+        char * host = malloc(sizeof(char)*50);
+
+        user = strtok(testHost,&divideUser);
+        pass = strtok(NULL,&dividePass);
+        host = strtok(NULL,&dividePass);
+        
+        if(user == NULL || pass == NULL || host == NULL){
+            perror("Please use the following format for the intruduction of username and password : username:password@host\n");
+            exit(1);
+        }
+
+        printf("%s   :   %s   @   %s\n",user,pass,host);
+    }
+    
 
 }
 
