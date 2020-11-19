@@ -35,7 +35,7 @@ int main(int argc, char **argv){
 
 void getURL(char * url, char * argv){
   regex_t regex;
-  if (regcomp(&regex, "^ftp://((a-zA-Z0-9)+:(a-zA-Z0-9)*@)?.+(/[^/]+)+$", REG_EXTENDED) != 0) {
+  if (regcomp(&regex, "^ftp://((a-zA-Z0-9)+:(a-zA-Z0-9)*@)?.+(/[^/]+)+/?+$", REG_EXTENDED) != 0) {
     perror("Url regex");
     exit(1);
   }
@@ -118,8 +118,8 @@ struct hostent *getHostname(char *host)
         exit(1);
     }
 
-        printf("Host name  : %s\n", h->h_name);
-        printf("IP Address : %s\n", inet_ntoa(*((struct in_addr *)h->h_addr)));
+    printf("Host name  : %s\n", h->h_name);
+    printf("IP Address : %s\n", inet_ntoa(*((struct in_addr *)h->h_addr)));
 
-        return h;
+    return h;
 }
