@@ -168,7 +168,8 @@ void getFile(int sockfd,int sockfdData,char * file){
 
         FILE * fileToCreate = fopen(lastToken,"wb");
         if(fileToCreate == NULL){
-            printf("file is null\n\n\n\n");
+            printf("error opening file\n");
+            exit(1);
         }
         char fileBuffer[bytesToRead];
         char auxBuf[256];
