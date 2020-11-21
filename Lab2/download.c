@@ -16,6 +16,8 @@
 void getURL(char *username, char *password, char *returnHost, char *file, char *argv);
 struct hostent *getHostname(char *host);
 int parseStartConnection(char* buf);
+int sendUserPass(int sockfd, char * user,char * pass);
+void getFile(int sockfd,int sockfdData,char * file);
 
 // download ftp://[<user>:<password>@]ftp.up.pt/pub
 
@@ -23,6 +25,7 @@ int main(int argc, char **argv)
 {
     struct hostent *h;
     int sockfd;
+    int sockfdData;
     struct sockaddr_in server_addr;
 
     if (argc != 2)
@@ -79,6 +82,39 @@ int main(int argc, char **argv)
     }
 
     printf("parsed starting connection\n");
+
+    int serverPort = sendUserPass(sockfd,username,password);
+    if(serverPort == -1){
+        printf("failed when receiving port from server");
+    }
+
+    /*server address handling*/
+    bzero((char *)&server_addr, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(inet_ntoa(*((struct in_addr *)h->h_addr))); /*32 bit Internet address network byte ordered*/
+    server_addr.sin_port = htons(serverPort);                                          /*server TCP port must be network byte ordered */
+
+    /*open an TCP socket*/
+    if ((sockfdData = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        perror("socket()");
+        exit(0);
+    }
+    /*connect to the server*/
+    if (connect(sockfdData,
+                (struct sockaddr *)&server_addr,
+                sizeof(server_addr)) < 0)
+    {
+        perror("connect()");
+        exit(0);
+    }
+
+    printf("connected to data server-port\n");
+    printf("getting file:%s\n",file);
+
+    getFile(sockfd,sockfdData,file);
+
+
     free(username);
     free(password);
     free(host);
@@ -95,6 +131,128 @@ int parseStartConnection(char* buf){
     if(buf[3] != '-')
         return 0;
     return 1;
+}
+
+void getFile(int sockfd,int sockfdData,char * file){
+    char * cmd = malloc(sizeof(char)*50);
+    int bytesRead = 0;
+    cmd[0] = '\0';
+    strcat(cmd,"retr ");
+    strcat(cmd,file);
+    strcat(cmd,"\n");
+    write(sockfd,cmd,strlen(cmd));
+    char * buf = malloc(sizeof(char)*256);
+    bytesRead = read(sockfd,buf,256);
+    printf("\t");
+    fflush(stdout);
+    write(1,buf,bytesRead);
+    if(strncmp(buf,"150",3)){
+        printf("couldn't open binary data connection for this file\n");
+    }
+    else
+    {
+        char *token;
+        token = strtok(buf, "(");
+        token = strtok(NULL,")");
+        char * aux_token;
+        aux_token = strtok(token," ");
+        int bytesToRead = atoi(aux_token);
+
+        char * auxFile;
+        char * lastToken;
+        auxFile = strtok(file,"/");
+        while(auxFile != NULL){
+            lastToken = auxFile;
+            auxFile = strtok(NULL,"/");
+        }
+
+        FILE * fileToCreate = fopen(lastToken,"wb");
+        if(fileToCreate == NULL){
+            printf("file is null\n\n\n\n");
+        }
+        char fileBuffer[bytesToRead];
+        char auxBuf[256];
+        bytesRead = 0;
+        int totalBytesRead = 0;
+        while(totalBytesRead < bytesToRead){
+            bytesRead = read(sockfdData,auxBuf,256);
+            memcpy(fileBuffer+totalBytesRead,auxBuf,bytesRead);
+            totalBytesRead += bytesRead;
+        }
+
+        fwrite(fileBuffer,sizeof(char),bytesToRead,fileToCreate);
+        fclose(fileToCreate);
+        printf("Finished creating file\n");
+
+    }
+}
+
+int sendUserPass(int sockfd, char * user,char * pass){
+    char * cmd = malloc(sizeof(char)*50);
+    int bytesRead = 0;
+    cmd[0] = '\0';
+    strcat(cmd,"user ");
+    strcat(cmd,user);
+    strcat(cmd,"\n");
+    write(sockfd,cmd,strlen(cmd));
+    char * buf = malloc(sizeof(char)*256);
+    bytesRead = read(sockfd,buf,256);
+    printf("\t");
+    fflush(stdout);
+    write(1,buf,bytesRead);
+    if(strncmp(buf,"331",3)){
+        printf("couldn't specify password\n");
+    }
+    else
+    {
+        cmd[0] = '\0';
+        strcat(cmd,"pass ");
+        strcat(cmd,pass);
+        strcat(cmd,"\n");
+
+        write(sockfd,cmd,strlen(cmd));
+        bytesRead = read(sockfd,buf,256);
+
+        printf("\t");
+        fflush(stdout);
+        write(1,buf,bytesRead);
+    }
+    if(strncmp(buf,"230",3)){
+        printf("didn't login successfully\n");
+    }
+    else{
+        cmd[0] = '\0';
+        strcat(cmd,"pasv\n");
+        write(sockfd,cmd,strlen(cmd));
+        bytesRead = read(sockfd,buf,256);
+
+        printf("\t");
+        fflush(stdout);
+        write(1,buf,bytesRead);
+    }
+    if(strncmp(buf,"227",3)){
+        printf("couldn't enter passive mode\n");
+    }
+    else{
+        char *token;
+        token = strtok(buf, "(");
+        token = strtok(NULL,")");
+        char * aux_token;
+        aux_token = strtok(token,",");
+        aux_token = strtok(NULL,",");
+        aux_token = strtok(NULL,",");
+        aux_token = strtok(NULL,",");
+        aux_token = strtok(NULL,",");
+        int port;
+        int aux;
+        port = atoi(aux_token)*256;
+        aux_token = strtok(NULL,",");
+        aux = atoi(aux_token);
+        port += aux;
+        return port;
+    }
+    return -1;
+    
 }
 
 void getURL(char *username, char *password, char *returnHost, char *file, char *argv)
@@ -119,10 +277,9 @@ void getURL(char *username, char *password, char *returnHost, char *file, char *
 
     regfree(&regex);
 
-    const char delimiter = '/';
     char *token;
-    token = strtok(argv, &delimiter);
-    token = strtok(NULL, &delimiter); //Skip ftp://
+    token = strtok(argv, "/");
+    token = strtok(NULL, "/"); //Skip ftp://
     int isHost = 0;
     char *testHost = malloc(sizeof(char) * 50);
     char *filepath = malloc(sizeof(char) * 256);
@@ -138,7 +295,7 @@ void getURL(char *username, char *password, char *returnHost, char *file, char *
             strcat(filepath, token);
             strcat(filepath, "/");
         }
-        token = strtok(NULL, &delimiter);
+        token = strtok(NULL, "/");
     }
 
     char *pPosition = strchr(testHost, '@');
@@ -177,7 +334,7 @@ void getURL(char *username, char *password, char *returnHost, char *file, char *
 
     memcpy(username, user, strlen(user));
     memcpy(password, pass, strlen(pass));
-    memcpy(file, filepath, strlen(filepath));
+    memcpy(file, filepath, strlen(filepath)-1);
     memcpy(returnHost, host, strlen(host));
     free(user);
     free(pass);
