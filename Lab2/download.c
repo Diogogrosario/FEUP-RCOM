@@ -306,7 +306,7 @@ void getURL(char *username, char *password, char *returnHost, char *file, char *
 
     if (pPosition == NULL)
     {
-        strcpy(user, "Anonymous");
+        strcpy(user, "anonymous");
         strcpy(pass, "");
         strcpy(host, testHost);
     }
