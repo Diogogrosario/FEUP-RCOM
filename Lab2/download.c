@@ -284,6 +284,7 @@ void getURL(char *username, char *password, char *returnHost, char *file, char *
     int isHost = 0;
     char *testHost = malloc(sizeof(char) * 50);
     char *filepath = malloc(sizeof(char) * 256);
+    strcpy(filepath, "");
     while (token != NULL)
     {
         if (isHost == 0)
@@ -333,10 +334,11 @@ void getURL(char *username, char *password, char *returnHost, char *file, char *
         }
     }
 
-    memcpy(username, user, strlen(user));
-    memcpy(password, pass, strlen(pass));
-    memcpy(file, filepath, strlen(filepath)-1);
-    memcpy(returnHost, host, strlen(host));
+    strcpy(username, user);
+    strcpy(password, pass);
+    strcpy(file, filepath);
+    file[strlen(file) - 1] = '\0'; // remove '/' from the end of the path
+    strcpy(returnHost, host);
     free(user);
     free(pass);
     free(host);
