@@ -122,8 +122,10 @@ int main(int argc, char **argv)
 }
 
 int parseStartConnection(char* buf){
-    char status[3];
-    memcpy(status,buf,3);
+    char status[4];
+    strncpy(status,buf,3);
+    fflush(stdout);
+    printf("testing :%s\n",status);
     if(strcmp(status,"220")){
         printf("wrong message received, not code 220");
         exit(1);
@@ -339,10 +341,10 @@ void getURL(char *username, char *password, char *returnHost, char *file, char *
     strcpy(file, filepath);
     file[strlen(file) - 1] = '\0'; // remove '/' from the end of the path
     strcpy(returnHost, host);
-    free(user);
-    free(pass);
-    free(host);
-    free(filepath);
+    //free(user);
+    //free(pass);
+    //free(host);
+    //free(filepath);
 }
 
 struct hostent *getHostname(char *host)
