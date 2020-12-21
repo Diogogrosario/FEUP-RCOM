@@ -125,7 +125,6 @@ int parseStartConnection(char* buf){
     char status[4];
     strncpy(status,buf,3);
     fflush(stdout);
-    printf("testing :%s\n",status);
     if(strcmp(status,"220")){
         printf("wrong message received, not code 220");
         exit(1);
@@ -173,17 +172,14 @@ void getFile(int sockfd,int sockfdData,char * file){
             printf("error opening file\n");
             exit(1);
         }
-        char fileBuffer[bytesToRead];
         char auxBuf[256];
         bytesRead = 0;
         int totalBytesRead = 0;
         while(totalBytesRead < bytesToRead){
             bytesRead = read(sockfdData,auxBuf,256);
-            memcpy(fileBuffer+totalBytesRead,auxBuf,bytesRead);
+            fwrite(auxBuf,sizeof(char),bytesRead,fileToCreate);
             totalBytesRead += bytesRead;
         }
-
-        fwrite(fileBuffer,sizeof(char),bytesToRead,fileToCreate);
         fclose(fileToCreate);
         printf("Finished creating file\n");
 
